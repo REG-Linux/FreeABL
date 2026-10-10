@@ -95,6 +95,11 @@ directories differ. Compare two images with `sha256sum`.
 Needs `qemu-system-aarch64`, `qemu-efi-aarch64` (AAVMF), `mtools`, `gdisk`,
 `grub-efi-arm64-bin` / `grub-mkstandalone`.
 
+## Credits
+
+- Base: CodeLinaro/Qualcomm edk2 LinuxLoader and TianoCore EDK2.
+- Signing: [qtestsign](https://github.com/msm8916-mainline/qtestsign) by Stephan Gerhold.
+
 ## Licence
 
 FreeABL's own code is GPL-3.0-or-later ([LICENSE](LICENSE)). Files from
