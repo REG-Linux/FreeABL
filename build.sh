@@ -37,6 +37,13 @@ make -j"$(nproc)" all \
   DISABLE_KERNEL_PROTOCOL=${DISABLE_KERNEL_PROTOCOL:-$(case "$SOC" in sdm845|sm8250) echo 1;; *) echo 0;; esac)} \
   ESP_DEBUG_SCREEN=${ESP_DEBUG_SCREEN:-FALSE} \
   ESP_DISPLAY_OFF=$([ "$SOC" = sdm845 ] && echo TRUE || echo FALSE)
+# Licence guard: OpenDice / BoringSSL (on CLO's link line, partly under the
+# OpenSSL/SSLeay licence) must never end up in the GPL image.
+MAP=obj/ABL_OBJ/Build/DEBUG_CLANG35/AARCH64/QcomModulePkg/Application/LinuxLoader/LinuxLoader/OUTPUT/LinuxLoader.map
+[ -f "$MAP" ] || { echo "FAIL: no linker map ($MAP)"; exit 1; }
+if grep -qiE 'OpenDice|open-dice|boringssl' "$MAP"; then
+  echo "FAIL: OpenDice/BoringSSL code linked into LinuxLoader (licence)"; exit 1
+fi
 ELF="$PWD/obj/ABL_OBJ/../../unsigned_abl.elf"; ELF=$(readlink -f "$ELF")
 mkdir -p "$HERE/out"
 OUT="$HERE/out/abl_signed-${SOC^^}-ESP-r34.elf"
