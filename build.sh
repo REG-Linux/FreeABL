@@ -11,6 +11,9 @@ SOC=${1:?usage: build.sh <sdm845|sm6115|sm8250|sm8550|sm8650|sm8750>}
 declare -A SIGN=([sdm845]=5 [sm6115]=6 [sm8250]=6 [sm8550]=7 [sm8650]=7 [sm8750]=7)
 V=${SIGN[$SOC]:?unknown soc $SOC}
 cd "$HERE/edk2"
+# Reproducible: __DATE__/__TIME__ come from the edk2 commit, so the same sources
+# built in the same directory give the same image.
+export SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-$(git log -1 --format=%ct)}
 for f in BaseTools/Source/C/Makefiles/header.makefile BaseTools/Conf/tools_def.template Conf/tools_def.txt; do
   [ -f "$f" ] && sed -i 's/-Wall -Werror/-Wall -Wno-error/g' "$f"
 done
