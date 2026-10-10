@@ -26,14 +26,14 @@ Based on CodeLinaro edk2 `uefi.lnx.5.0.r34-rel`, in the
 
 ## Supported SoCs
 
-| SoC | Signing (qtestsign) | Devices tested |
-|---|---|---|
-| sdm845 | v5 | AYN Odin (Linux + Android on the device) |
-| sm6115 | v6 | QEMU on Mangmi Air X factory images |
-| sm8250 | v6 | QEMU on a Mangmi Pocket Max dump |
-| sm8550 | v7 | QEMU on an AYANEO Pocket S build |
-| sm8650 | v7 | build only |
-| sm8750 | v7 | build only |
+| SoC | Signing (qtestsign) | Validated on device | Also tested in QEMU |
+|---|---|---|---|
+| sdm845 | v5 | AYN Odin | Odin UFS/SD layouts, stock Android |
+| sm6115 | v6 | Mangmi Air X (MQ66) | MQ66 and MQ65 factory images |
+| sm8250 | v6 | Mangmi Pocket Max | Pocket Max dump |
+| sm8550 | v7 | - | AYANEO Pocket S build |
+| sm8650 | v7 | - | build only |
+| sm8750 | v7 | - | build only |
 
 The signature is a test signature: the device's bootloader must be unlocked
 (no secure boot fused).
