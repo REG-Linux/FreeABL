@@ -1,6 +1,6 @@
 #!/bin/bash
 # build-harness.sh — build only the QEMU EspHarness test app (not part of the ABL image).
-set -e
+set -eo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 "$HERE/tools/mktoolbin.sh"
 cd "$HERE/edk2"
