@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Host unit test for QcomModulePkg/Library/BootLib/BootDispatch.c.
    Models LinuxLoader's routing flow across reboots and checks safety
    invariants for every input combination.

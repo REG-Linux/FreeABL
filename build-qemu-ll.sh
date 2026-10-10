@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
 # build-qemu-ll.sh — LinuxLoader test variant for QEMU/AAVMF: identical sources and
 # build defines as build.sh (taken from the CLO makefile dry run), plus QEMU_TEST=TRUE,
 # which only swaps DebugLib so DEBUG() reaches the console. Not flashable.

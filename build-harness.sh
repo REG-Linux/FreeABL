@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
 # build-harness.sh — build only the QEMU EspHarness test app (not part of the ABL image).
 set -eo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"

@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
 # build-all.sh — build every SoC, one log each, summary at the end.
 HERE="$(cd "$(dirname "$0")" && pwd)"
 mkdir -p "$HERE/logs"

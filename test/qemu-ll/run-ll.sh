@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
 # run-ll.sh <log> <seconds> [extra disk images...]
 # Boots AAVMF; the "internal" disk carries LinuxLoader.efi (+ optional QemuQcomShim.efi)
 # and a startup.nsh that loads the shim then runs LinuxLoader.

@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
 # run2.sh <sd-img> <log> [seconds] : internal(harness) + SD
 cp /usr/share/AAVMF/AAVMF_VARS.fd $1.vars; cd "$(dirname "$1")"
 timeout ${3:-60} qemu-system-aarch64 -M virt -cpu cortex-a57 -m 1024 -nographic \

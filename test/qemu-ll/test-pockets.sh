@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
 # test-pockets.sh — SM8550 (AYANEO Pocket S, KalamaP SG, UFS, boot header v4, vbmeta chaining
 # boot/recovery): the real LinuxLoader built for sm8550, shim profile "pockets", on AYANEO's
 # flat build for the installed build (~/AyaneoPocketS/images, never committed; skipped when

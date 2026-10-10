@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
 # test-ll.sh — run the REAL LinuxLoader (QEMU test variant) through QemuQcomShim on
 # Odin-like disks and check where each boot ends. Also checks the UFS disk is not
 # modified (GPT / boot / dtbo) in the scenarios where nothing should be written.

@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
 # test-pm.sh — SM8250 (Mangmi Pocket Max): the real LinuxLoader built for sm8250, shim profile
 # "pocketmax", on the device's own EDL dump (~/MangmiPocketMax/partitions/edl-1008, never
 # committed; skipped when absent). Android path up to the kernel handoff, cmdline checked.

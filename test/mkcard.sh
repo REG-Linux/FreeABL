@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
 # mkcard.sh <img> <mformat|mkfs> <path-in-ESP> <efi-file> [<path2> <file2>...]
 set -e
 IMG=$1 FMT=$2; shift 2

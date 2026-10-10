@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
 # mktoolbin.sh — create toolbin/: the clang/lld/llvm tool names the CLO build expects,
 # pointing at versioned host tools. Idempotent. Override the versions with
 # CLANG_VER (default 18) and LLD_VER (default 15, falls back to CLANG_VER).

@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
 # test-airx.sh — SM6115 (Mangmi Air X, eMMC, boot header v4 + init_boot + vendor_boot): the real
 # LinuxLoader built for sm6115, shim profile airx66 / airx65, on Mangmi's factory images
 # (~/MangmiAirX/mq6{6,5}-images, never committed; skipped when absent). Android path up to the

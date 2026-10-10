@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """mkufs.py <img> [--active a|b] [--boot-b android|empty] [--dtbo-b valid|erased] [--stock DIR]
 Odin-like UFS LUN image: devinfo, misc, boot_a/b, dtbo_a/b, vbmeta_a/b, system_a/b,
 vendor_a/b, userdata. A/B attributes: active slot marked active+successful, retry count 3.

@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
 # test-esp.sh — QEMU/AAVMF test of the ABL ESP chain (BootLib BootEsp+RawFat) up to GRUB.
 # Needs: qemu-system-aarch64, AAVMF, mtools, sgdisk, grub-mkstandalone + arm64-efi modules.
 set -u

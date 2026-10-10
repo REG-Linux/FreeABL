@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
 # run-all.sh — every no-board test for the ESP ABL.
 #  1. host unit test of the routing logic (BootDispatch.c, all input combinations)
 #  2. QEMU: BootLib ESP chain -> GRUB (EspHarness)
