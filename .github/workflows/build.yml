@@ -1,0 +1,32 @@
+name: build
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          # edk2-freeabl is private for now: give a token with read access to it.
+          token: ${{ secrets.SUBMODULE_TOKEN || github.token }}
+      - name: Host tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-18 lld-18 llvm-18 gcc-aarch64-linux-gnu \
+            build-essential uuid-dev python3 python3-cryptography device-tree-compiler
+      - name: Routing logic unit test
+        run: |
+          E=edk2/QcomModulePkg
+          cc -Wall -Wextra -Werror -DESP_HOST_TEST -I$E/Include/Library -o /tmp/bdt \
+            test/boot_dispatch_test.c $E/Library/BootLib/BootDispatch.c
+          /tmp/bdt | tail -1
+      - name: Build all SoCs
+        env:
+          LLD_VER: "18"
+        run: |
+          ./build-all.sh | tee summary.txt
+          ! grep -q '^FAIL' summary.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: freeabl-images
+          path: out/*.elf*
