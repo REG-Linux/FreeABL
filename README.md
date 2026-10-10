@@ -28,12 +28,15 @@ Based on CodeLinaro edk2 `uefi.lnx.5.0.r34-rel`, in the
 
 | SoC | Signing (qtestsign) | Validated on device | Also tested in QEMU |
 |---|---|---|---|
-| sdm845 | v5 | AYN Odin | Odin UFS/SD layouts, stock Android |
-| sm6115 | v6 | Mangmi Air X (MQ66) | MQ66 and MQ65 factory images |
-| sm8250 | v6 | Mangmi Pocket Max | Pocket Max dump |
+| sdm845 | v5 | AYN Odin \* | Odin UFS/SD layouts, stock Android |
+| sm6115 | v6 | Mangmi Air X (MQ66) \* | MQ66 and MQ65 factory images |
+| sm8250 | v6 | Mangmi Pocket Max \* | Pocket Max dump |
 | sm8550 | v7 | AYANEO Pocket S (G3x Gen 2), AYN Odin 2 Portal (QCS8550) | AYANEO Pocket S build |
 | sm8650 | v7 | - | build only |
 | sm8750 | v7 | - | build only |
+
+\* Validated with an earlier FreeABL build; re-testing with the current code is
+pending. The SM8550 devices were validated with the current code.
 
 The signature is a test signature: the device's bootloader must be unlocked
 (no secure boot fused).
@@ -117,8 +120,9 @@ Snapdragon and the device names are trademarks of their owners.
 FreeABL was developed with the help of AI coding tools. Every change was
 reviewed, built and tested by the maintainer (unit tests, QEMU scenarios and the
 devices listed above), and the maintainer is responsible for the code. FreeABL
-is built on CodeLinaro's open-source edk2 and contains no code taken from other
-ABL projects.
+is built on CodeLinaro's open-source edk2: the first commit of `edk2` is the
+unmodified CodeLinaro release, and `edk2/FREEABL.md` and the commit history
+show what FreeABL changed and added.
 
 ## Credits
 
@@ -129,6 +133,10 @@ ABL projects.
 
 FreeABL's own code is GPL-3.0-or-later ([LICENSE](LICENSE)). Files from
 CodeLinaro/Qualcomm and TianoCore EDK2 keep their original licences (BSD
-variants), see `edk2/FREEABL.md`. `tools/qtestsign` is
+variants, plus MIT, Zlib and Apache-2.0 for libavb, zlib and libufdt), see
+`edk2/FREEABL.md`. The copyright notices and licence texts of everything linked
+into the images are in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md); CI
+ships it with every image, together with `LICENSE` and `SOURCE.txt` (the exact
+source commits). `tools/qtestsign` is
 [qtestsign](https://github.com/msm8916-mainline/qtestsign) (GPL-2.0-only),
 used as a separate program.
