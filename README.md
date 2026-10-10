@@ -1,7 +1,7 @@
 # FreeABL
 
-A Qualcomm Android bootloader (ABL, the edk2 LinuxLoader) that boots Linux
-from the SD card through an EFI loader such as GRUB, next to the device's
+A free (GPL-3.0) Qualcomm Android bootloader (ABL, the edk2 LinuxLoader) that
+boots Linux from the SD card through an EFI loader such as GRUB, next to the device's
 unchanged Android.
 
 ```
