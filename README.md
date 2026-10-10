@@ -67,22 +67,22 @@ directories differ. Compare two images with `sha256sum`.
 
 ## Flash
 
-1. Back up the stock `abl_a` and `abl_b` partitions (EDL, with the firehose loader
-   for your device) and keep the copies safe.
-2. With the device unlocked and in fastboot mode, flash the image for its SoC to
-   the active slot, for example:
+See [FLASHING.md](FLASHING.md). `tools/freeabl-flash.py` backs up the stock ABL
+over EDL, flashes the active slot only and verifies the copy:
 
-   ```sh
-   fastboot flash abl_a out/abl_signed-SDM845-ESP-r34.elf
-   ```
-
-3. To go back to stock, flash the backed-up `abl_a` the same way (or write it
-   over EDL if the device no longer reaches fastboot).
+```sh
+./tools/freeabl-flash.py check                                  # fastboot mode
+./tools/freeabl-flash.py backup -d pockets --loader LOADER      # EDL mode
+./tools/freeabl-flash.py flash  -d pockets --loader LOADER
+./tools/freeabl-flash.py restore -d pockets --loader LOADER     # back to stock
+```
 
 ## SD card
 
 - A FAT16/FAT32 partition with `\EFI\BOOT\BOOTAA64.EFI`.
 - The kernel, initrd and device tree come from the card, loaded by GRUB.
+- If the card is not seen, format it with mtools (`mformat`): some firmware rejects
+  FAT32 volumes made by `mkfs.fat` (see [FLASHING.md](FLASHING.md#sd-card)).
 
 ## Tests (no device needed)
 
@@ -93,7 +93,8 @@ directories differ. Compare two images with `sha256sum`.
    `QemuQcomShim` (the Qualcomm protocols the firmware would provide);
 4. to 6. the same for sm8250, sm6115 and sm8550 on stock images from those devices,
    which are not in the repository: the scenarios are skipped when the images are absent
-   (paths in each `test/qemu-ll/test-*.sh`).
+   (paths in each `test/qemu-ll/test-*.sh`);
+7. `tools/freeabl-flash.py` against a simulated device (`test/flash/`).
 
 Needs `qemu-system-aarch64`, `qemu-efi-aarch64` (AAVMF), `mtools`, `gdisk`,
 `grub-efi-arm64-bin` / `grub-mkstandalone`.

@@ -4,6 +4,7 @@
 #  1. host unit test of the routing logic (BootDispatch.c, all input combinations)
 #  2. QEMU: BootLib ESP chain -> GRUB (EspHarness)
 #  3. QEMU: the real LinuxLoader through QemuQcomShim on Odin-like disks
+#  7. tools/freeabl-flash.py against a simulated device
 HERE="$(cd "$(dirname "$0")" && pwd)"; E="$HERE/../edk2/QcomModulePkg"; rc=0
 echo "== 1. routing logic (host)"
 cc -Wall -Wextra -Werror -DESP_HOST_TEST -I"$E/Include/Library" -o "$HERE/boot_dispatch_test" \
@@ -21,4 +22,6 @@ echo "== 5. LinuxLoader SM6115 (QEMU, Mangmi Air X MQ66 / MQ65 factory images)"
 echo "== 6. LinuxLoader SM8550 (QEMU, AYANEO Pocket S flat build)"
 "$HERE/../build-qemu-ll.sh" sm8550 >/dev/null && "$HERE/../build-qemu-ll.sh" sm8550 QcomModulePkg/Application/QemuQcomShim/QemuQcomShim.inf >/dev/null \
   && "$HERE/qemu-ll/test-pockets.sh" || rc=1
+echo "== 7. flash tool (simulated device)"
+python3 "$HERE/flash/test-flash.py" | tail -1; [ "${PIPESTATUS[0]}" = 0 ] || rc=1
 echo; [ $rc = 0 ] && echo "ALL TESTS PASS" || echo "SOME TESTS FAILED"; exit $rc

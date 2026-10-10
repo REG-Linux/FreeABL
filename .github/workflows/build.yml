@@ -20,14 +20,30 @@ jobs:
           cc -Wall -Wextra -Werror -DESP_HOST_TEST -I$E/Include/Library -o /tmp/bdt \
             test/boot_dispatch_test.c $E/Library/BootLib/BootDispatch.c
           /tmp/bdt | tail -1
+      - name: Flash tool test (simulated device)
+        run: python3 test/flash/test-flash.py
       - name: Build all SoCs
         run: |
           clang-18 --version | head -1; ld.lld-15 --version
           ./build-all.sh | tee summary.txt
           ! grep -q '^FAIL' summary.txt
+      - name: Images match the flash tool's signature formats
+        run: |
+          python3 - <<'EOF'
+          import importlib.util, sys
+          s = importlib.util.spec_from_file_location('f', 'tools/freeabl-flash.py')
+          f = importlib.util.module_from_spec(s); s.loader.exec_module(f)
+          want = {'sdm845': 5, 'sm6115': 6, 'sm8250': 6, 'sm8550': 7, 'sm8650': 7, 'sm8750': 7}
+          want.update({d['soc']: d['mbn'] for d in f.DEVICES.values()})
+          bad = 0
+          for soc, v in want.items():
+              got = f.mbn_version(f'out/abl_signed-{soc.upper()}-ESP-r34.elf')
+              print(soc, got); bad += got != v
+          sys.exit(bad)
+          EOF
       - name: Licences and source references
         run: |
-          cp LICENSE THIRD_PARTY_LICENSES.md out/
+          cp LICENSE THIRD_PARTY_LICENSES.md FLASHING.md tools/freeabl-flash.py out/
           {
             echo "FreeABL images, GPL-3.0-or-later. Source code:"
             echo "  https://github.com/REG-Linux/FreeABL commit $(git rev-parse HEAD)"
@@ -43,3 +59,5 @@ jobs:
             out/LICENSE
             out/THIRD_PARTY_LICENSES.md
             out/SOURCE.txt
+            out/FLASHING.md
+            out/freeabl-flash.py
