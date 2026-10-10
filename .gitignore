@@ -1,0 +1,13 @@
+# build output, device data, large images - never commit
+/toolbin
+/out/
+/logs/
+/odin-backup/
+/test/work/
+/test/qemu-ll/*.img
+/test/qemu-ll/*.before
+/test/qemu-ll/*.log
+/test/qemu-ll/*.fd
+/test/qemu-ll/*.vars
+/test/qemu-ll/startup.nsh
+/test/boot_dispatch_test
