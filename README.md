@@ -28,7 +28,7 @@ Based on CodeLinaro edk2 `uefi.lnx.5.0.r34-rel`, in the
 
 | SoC | Signing (qtestsign) | Validated on device | Also tested in QEMU |
 |---|---|---|---|
-| sdm845 | v5 | AYN Odin \* | Odin UFS/SD layouts, stock Android |
+| sdm845 | v5 | AYN Odin | Odin UFS/SD layouts, stock Android |
 | sm6115 | v6 | Mangmi Air X (MQ66) \* | MQ66 and MQ65 factory images |
 | sm8250 | v6 | Mangmi Pocket Max \* | Pocket Max dump |
 | sm8550 | v7 | AYANEO Pocket S (G3x Gen 2), AYN Odin 2 Portal (QCS8550) | AYANEO Pocket S build |
@@ -36,7 +36,7 @@ Based on CodeLinaro edk2 `uefi.lnx.5.0.r34-rel`, in the
 | sm8750 | v7 | - | build only |
 
 \* Validated with an earlier FreeABL build; re-testing with the current code is
-pending. The SM8550 devices were validated with the current code.
+pending. The SDM845 and SM8550 devices were validated with the current code.
 
 The signature is a test signature: the device's bootloader must be unlocked
 (no secure boot fused).
