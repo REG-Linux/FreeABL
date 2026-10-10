@@ -31,7 +31,7 @@ Based on CodeLinaro edk2 `uefi.lnx.5.0.r34-rel`, in the
 | sdm845 | v5 | AYN Odin | Odin UFS/SD layouts, stock Android |
 | sm6115 | v6 | Mangmi Air X (MQ66) | MQ66 and MQ65 factory images |
 | sm8250 | v6 | Mangmi Pocket Max | Pocket Max dump |
-| sm8550 | v7 | - | AYANEO Pocket S build |
+| sm8550 | v7 | AYANEO Pocket S (G3x Gen 2), AYN Odin 2 Portal (QCS8550) | AYANEO Pocket S build |
 | sm8650 | v7 | - | build only |
 | sm8750 | v7 | - | build only |
 
@@ -94,6 +94,31 @@ directories differ. Compare two images with `sha256sum`.
 
 Needs `qemu-system-aarch64`, `qemu-efi-aarch64` (AAVMF), `mtools`, `gdisk`,
 `grub-efi-arm64-bin` / `grub-mkstandalone`.
+
+## Disclaimer
+
+**Flash at your own risk.** FreeABL replaces your device's bootloader (ABL).
+A wrong or broken bootloader can leave a device unable to boot and recoverable
+only through Qualcomm EDL mode, or not at all.
+
+- Use it only on the devices listed under "Supported SoCs" as validated, with an
+  unlocked bootloader. Other devices with the same SoC may not work.
+- Back up the stock `abl_a` / `abl_b` first and make sure you can restore them
+  (EDL loader for your device).
+- FreeABL is provided "as is", without warranty of any kind, and its authors are not
+  liable for any damage or data loss, as stated in sections 15 and 16 of the
+  GNU GPL v3 (see [LICENSE](LICENSE)).
+
+FreeABL is not affiliated with Qualcomm, CodeLinaro or any device maker.
+Snapdragon and the device names are trademarks of their owners.
+
+## AI-assisted development
+
+FreeABL was developed with the help of AI coding tools. Every change was
+reviewed, built and tested by the maintainer (unit tests, QEMU scenarios and the
+devices listed above), and the maintainer is responsible for the code. FreeABL
+is built on CodeLinaro's open-source edk2 and contains no code taken from other
+ABL projects.
 
 ## Credits
 
