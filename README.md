@@ -54,6 +54,14 @@ ESP_DEBUG_SCREEN=TRUE ./build.sh sdm845   # debug build: DEBUG() on screen
 `tools/mktoolbin.sh` (run by the build scripts) links the clang/lld tools into
 `toolbin/`; set `CLANG_VER` / `LLD_VER` to use other versions.
 
+## Reproducible builds
+
+`build.sh` sets `SOURCE_DATE_EPOCH` to the edk2 commit time, so the same commit
+built in the same directory with the same toolchain gives byte-identical
+signed images (CI included: build in `/home/runner/work/FreeABL/FreeABL` to
+match its artifacts). Source paths end up in the image, so builds made in other
+directories differ. Compare two images with `sha256sum`.
+
 ## Flash
 
 1. Back up the stock `abl_a` and `abl_b` partitions (EDL, with the firehose loader
