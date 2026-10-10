@@ -25,7 +25,21 @@ jobs:
           clang-18 --version | head -1; ld.lld-15 --version
           ./build-all.sh | tee summary.txt
           ! grep -q '^FAIL' summary.txt
+      - name: Licences and source references
+        run: |
+          cp LICENSE THIRD_PARTY_LICENSES.md out/
+          {
+            echo "FreeABL images, GPL-3.0-or-later. Source code:"
+            echo "  https://github.com/REG-Linux/FreeABL commit $(git rev-parse HEAD)"
+            echo "  https://github.com/REG-Linux/edk2-freeabl commit $(git -C edk2 rev-parse HEAD)"
+            echo "  https://github.com/msm8916-mainline/qtestsign commit $(git -C tools/qtestsign rev-parse HEAD) (signing tool)"
+            echo "Third-party licences and notices: THIRD_PARTY_LICENSES.md"
+          } > out/SOURCE.txt
       - uses: actions/upload-artifact@v4
         with:
           name: freeabl-images
-          path: out/*.elf*
+          path: |
+            out/*.elf*
+            out/LICENSE
+            out/THIRD_PARTY_LICENSES.md
+            out/SOURCE.txt
