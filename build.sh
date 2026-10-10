@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
 # build.sh <soc> — FreeABL (CLO uefi.lnx.5.0.r34-rel + ESP boot) for one SoC.
 # Kernel handoff: classic (DISABLE_KERNEL_PROTOCOL=1) on sdm845/sm8250 like their stock
 # ABLs (the Mangmi Pocket Max firmware has the protocol but Android only boots classic);
@@ -33,7 +34,7 @@ make -j"$(nproc)" all \
   DYNAMIC_PARTITION_SUPPORT=1 VIRTUAL_AB_OTA=1 \
   INIT_BIN=$([ "$SOC" = sdm845 ] && echo /init || echo /sbin/init) USERDATAIMAGE_FILE_SYSTEM_TYPE=ext4 \
   LOAD_ADDRESS=0x9FA00000 \
-  DISABLE_KERNEL_PROTOCOL=$(case "$SOC" in sdm845|sm8250) echo 1;; *) echo 0;; esac) \
+  DISABLE_KERNEL_PROTOCOL=${DISABLE_KERNEL_PROTOCOL:-$(case "$SOC" in sdm845|sm8250) echo 1;; *) echo 0;; esac)} \
   ESP_DEBUG_SCREEN=${ESP_DEBUG_SCREEN:-FALSE} \
   ESP_DISPLAY_OFF=$([ "$SOC" = sdm845 ] && echo TRUE || echo FALSE)
 ELF="$PWD/obj/ABL_OBJ/../../unsigned_abl.elf"; ELF=$(readlink -f "$ELF")
