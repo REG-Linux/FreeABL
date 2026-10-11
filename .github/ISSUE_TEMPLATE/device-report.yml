@@ -1,0 +1,53 @@
+name: Device report
+description: FreeABL on a device that is not in the list, or not validated with the current build
+title: "[device] "
+labels: ["device report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing. Paste the tester report printed by
+        `freeabl-flash.py backup` and tell us what worked.
+        Do not attach your ABL backup files: they are only for your device.
+  - type: input
+    id: device
+    attributes:
+      label: Device
+      description: Maker, model and variant (RAM / storage)
+      placeholder: AYN Odin 2 Mini, 8 GB / 128 GB
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: Tester report
+      description: The "Tester report" line from `freeabl-flash.py backup`
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: build
+    attributes:
+      label: FreeABL image
+      description: Release or commit, and the image's sha256
+    validations:
+      required: true
+  - type: checkboxes
+    id: results
+    attributes:
+      label: What worked
+      options:
+        - label: The FreeABL menu shows (chipset, memory, storage)
+        - label: Android boots
+        - label: fastboot works
+        - label: Linux boots from the SD card
+        - label: Restoring the stock ABL works
+  - type: input
+    id: edl
+    attributes:
+      label: How you reach EDL without Android
+      description: Button combination or test point, if you know it (helps other owners recover)
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes, logs, photos of the screen

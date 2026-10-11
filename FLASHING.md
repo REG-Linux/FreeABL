@@ -42,8 +42,11 @@ but were never run on a device.
 - **Python 3.8 or later.**
 - **Android platform-tools** (`fastboot`, `adb`):
   <https://developer.android.com/tools/releases/platform-tools>.
-- **The edl tool:** `pip install git+https://github.com/bkerler/edl`.
+- **The edl tool**, at the version we test with:
+  `pip install git+https://github.com/bkerler/edl@9fab1fe3e7cd6f8dfa1e8e28e634aaeaf5b46b17`
+  (a virtual environment, `python3 -m venv`, keeps it apart from system packages).
   - On Linux, install its udev rules or run it with `sudo`.
+  - On macOS, install libusb first: `brew install libusb`.
   - On Windows, EDL needs the WinUSB driver: in EDL mode the device shows up as
     `QUSB__BULK` or `Qualcomm HS-USB QDLoader 9008`; install WinUSB on it with
     [Zadig](https://zadig.akeo.ie/).
@@ -67,7 +70,9 @@ does not boot, you need a way in that does not depend on it:
 ## Steps
 
 Run the tool from the folder that holds the image, or pass `-i IMAGE`. In a
-release download the tool is `freeabl-flash.py`, next to the images.
+release download the tool is `freeabl-flash.py`, next to the images. On Windows,
+start it with `python freeabl-flash.py ...` (or `py freeabl-flash.py ...`)
+instead of `./tools/freeabl-flash.py ...`.
 
 1. **Check.** Boot the device to fastboot mode (`adb reboot bootloader`, or the
    device's key combination, often Volume Down + Power from off).

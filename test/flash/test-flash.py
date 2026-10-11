@@ -200,5 +200,15 @@ rc, out = d.run('flash', '-d', 'pocketmax', '--untested', *L(d), '-i', img, stdi
 check('earlier-build device ok with --untested', rc == 0, out)
 shutil.rmtree(d.dir)
 
+# 12. devices.json (used by web/) matches the table embedded in the tool
+import importlib.util
+spec = importlib.util.spec_from_file_location('ff', TOOL)
+ff = importlib.util.module_from_spec(spec); spec.loader.exec_module(ff)
+dj = json.load(open(os.path.join(HERE, '..', '..', 'devices.json')))
+emb = {k: {kk: (('0x%x' % vv) if kk == 'msm_id' and vv is not None else vv) for kk, vv in d.items()}
+       for k, d in ff.DEVICES.items()}
+check('devices.json matches the tool', dj['devices'] == emb and dj['soc_mbn'] == ff.SOC_MBN
+      and dj['min_battery_mv'] == ff.MIN_MV)
+
 print(f"\n{'all passed' if not failures else f'{len(failures)} FAILED'}")
 sys.exit(1 if failures else 0)
