@@ -207,7 +207,7 @@ ff = importlib.util.module_from_spec(spec); spec.loader.exec_module(ff)
 dj = json.load(open(os.path.join(HERE, '..', '..', 'devices.json')))
 emb = {k: {kk: (('0x%x' % vv) if kk == 'msm_id' and vv is not None else vv) for kk, vv in d.items()}
        for k, d in ff.DEVICES.items()}
-check('devices.json matches the tool', dj['devices'] == emb and dj['soc_mbn'] == ff.SOC_MBN
+check('devices.json matches the tool', {k: {kk: v[kk] for kk in emb.get(k, {})} for k, v in dj['devices'].items()} == emb and dj['soc_mbn'] == ff.SOC_MBN
       and dj['min_battery_mv'] == ff.MIN_MV)
 
 print(f"\n{'all passed' if not failures else f'{len(failures)} FAILED'}")

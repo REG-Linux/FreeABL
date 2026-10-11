@@ -32,6 +32,12 @@ but were never run on a device.
 
 `./tools/freeabl-flash.py devices` prints this list.
 
+A web version of this tool, with the same checks, is in [`web/`](web/README.md).
+It has not been run on a device yet: use the command-line tool for now.
+Backups are interchangeable: extract the web flasher's `freeabl-backup-SERIAL.tar`
+into `~/FreeABL-backups/`, or pack a tool backup for the web page with
+`tar -cf freeabl-backup-SERIAL.tar -C ~/FreeABL-backups SERIAL`.
+
 ## What you need
 
 - **An unlocked bootloader.** FreeABL images carry a test signature: a locked

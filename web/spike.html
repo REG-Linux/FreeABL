@@ -1,0 +1,88 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FreeABL USB Probe</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <h1>FreeABL USB probe</h1>
+  <p class="lede">Read-only checks for a new device or browser: nothing is written. Use it before the flasher
+    on a device the web flasher has not been tried on, and send the log with your device report.</p>
+
+  <section class="card">
+    <h2>fastboot</h2>
+    <button id="fb">Connect in fastboot mode and read variables</button>
+  </section>
+
+  <section class="card">
+    <h2>EDL</h2>
+    <div class="grid">
+      <label><span>EDL loader (firehose)</span><input type="file" id="loader"></label>
+      <label><span>Storage</span>
+        <select id="memory"><option value="ufs">UFS</option><option value="emmc">eMMC</option></select>
+      </label>
+      <label><span>Reference <code>abl_a</code> dump (optional, from the edl tool or a backup)</span><input type="file" id="ref"></label>
+    </div>
+    <div class="row">
+      <button id="edl">Connect in EDL and read abl_a and abl_b</button>
+      <button id="reset" disabled>Reboot the device</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Log</h2>
+    <pre id="log"></pre>
+  </section>
+</main>
+<script type="module">
+import { fastbootDriver, edlDriver } from './usb.js';
+import { mbnVersion, sha256hex, sameBytes } from './core.js';
+
+const $ = (id) => document.getElementById(id);
+const log = (m) => { $('log').textContent += m + '\n'; };
+const fail = (e) => log(`ERROR: ${e?.message || e}`);
+let edl = null;
+
+$('fb').onclick = async () => {
+  try {
+    const fb = fastbootDriver(log);
+    await fb.connect();
+    for (const v of ['product', 'variant', 'serialno', 'unlocked', 'current-slot', 'slot-count', 'battery-voltage',
+                     'has-slot:abl', 'max-download-size', 'version-bootloader', 'secure'])
+      log(`${v.padEnd(18)} ${(await fb.getVar(v)) ?? '-'}`);
+  } catch (e) { fail(e); }
+};
+
+$('edl').onclick = async () => {
+  try {
+    const f = $('loader').files[0];
+    if (!f) return log('choose the loader first');
+    edl = edlDriver(log);
+    const t0 = performance.now();
+    const { msmId } = await edl.connect(new Uint8Array(await f.arrayBuffer()), $('memory').value);
+    log(`connected in ${Math.round(performance.now() - t0)} ms; MSM ID ${msmId === null ? 'not read' : '0x' + msmId.toString(16)}`);
+    $('reset').disabled = false;
+    for (const p of ['abl_a', 'abl_b']) {
+      const t1 = performance.now();
+      const d = await edl.read(p);
+      const v = mbnVersion(d);
+      log(`${p}: ${d.length} bytes in ${Math.round(performance.now() - t1)} ms, ${v === 'empty' ? 'empty' : v ? 'signature v' + v : 'not a signed ABL'}, sha256 ${await sha256hex(d)}`);
+      if (p === 'abl_a' && $('ref').files[0]) {
+        const r = new Uint8Array(await $('ref').files[0].arrayBuffer());
+        const n = Math.min(r.length, d.length);
+        log(`abl_a vs reference: ${sameBytes(d.subarray(0, n), r.subarray(0, n)) ? 'IDENTICAL' : 'DIFFERENT'} (${n} bytes compared)`);
+      }
+    }
+  } catch (e) { fail(e); }
+};
+
+$('reset').onclick = async () => {
+  try { await edl.reset(); log('rebooting'); } catch (e) { fail(e); }
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,152 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FreeABL Flasher</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <header>
+    <h1>FreeABL Flasher</h1>
+    <p class="lede">Back up, install and remove FreeABL from your browser. Nothing to install
+      except the USB driver on Windows. Read <a href="https://github.com/REG-Linux/FreeABL/blob/main/FLASHING.md">FLASHING.md</a>
+      and the <a href="https://github.com/REG-Linux/FreeABL#disclaimer">disclaimer</a> first.</p>
+    <p id="sim-banner" class="banner sim" hidden>Simulation: no USB device is used. Remove <code>?sim=1</code> from the address to flash a real device.</p>
+    <p id="nousb" class="banner bad" hidden>This browser has no WebUSB. Use Chrome, Edge or another Chromium browser on a computer, or the command-line tool <code>freeabl-flash.py</code>.</p>
+  </header>
+
+  <section class="card" id="setup">
+    <h2>1. Device and files</h2>
+    <div class="grid">
+      <label><span>Device</span>
+        <select id="device"></select>
+      </label>
+      <label id="soc-row" hidden><span>SoC</span>
+        <select id="soc"></select>
+      </label>
+      <label><span>Storage</span>
+        <select id="memory">
+          <option value="">as listed</option>
+          <option value="ufs">UFS</option>
+          <option value="emmc">eMMC</option>
+        </select>
+      </label>
+    </div>
+    <p id="device-note" class="note"></p>
+    <label class="check"><input type="checkbox" id="untested"> Tester mode (untested): a device that is not in the list, another chip ID, or a device validated with an earlier build only. The backup and the signature check still apply.</label>
+    <div class="grid">
+      <label><span>FreeABL image (<code>abl_signed-…-ESP-r34.elf</code>)</span>
+        <input type="file" id="image" accept=".elf">
+      </label>
+      <label><span>Checksum file (<code>.sha256</code> or <code>SHA256SUMS</code>), recommended</span>
+        <input type="file" id="sums">
+      </label>
+      <label><span>EDL loader (firehose) for your device</span>
+        <input type="file" id="loader">
+      </label>
+    </div>
+    <p id="loader-note" class="note"></p>
+  </section>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="install" aria-selected="true">Install</button>
+    <button role="tab" data-tab="update" aria-selected="false">Update (fastboot)</button>
+    <button role="tab" data-tab="restore" aria-selected="false">Back to stock</button>
+    <button role="tab" data-tab="drivers" aria-selected="false">USB setup</button>
+  </nav>
+
+  <section class="card tab" id="tab-install">
+    <ol class="steps">
+      <li>
+        <h3>Check</h3>
+        <p>Boot the device to fastboot mode (often Volume Down + Power from off) and connect it.</p>
+        <button id="btn-check">Connect in fastboot mode and check</button>
+      </li>
+      <li>
+        <h3>Back up the stock bootloader</h3>
+        <p>Boot the device to EDL: from fastboot, <code>fastboot reboot</code>, let Android start, then
+          <code>adb reboot edl</code>; or the device's EDL button combination. The screen stays black.</p>
+        <button id="btn-backup" disabled>Connect in EDL and back up</button>
+        <p class="note">The backup downloads as <code>freeabl-backup-SERIAL.tar</code>. Keep it safe: it is the only way back to your stock bootloader.</p>
+        <pre id="report" class="report" hidden></pre>
+      </li>
+      <li>
+        <h3>Prove the backup is saved</h3>
+        <p>Select the file you just saved. Flashing stays locked until it matches.</p>
+        <input type="file" id="backup-proof" accept=".tar" disabled>
+      </li>
+      <li>
+        <h3>Flash</h3>
+        <p>Writes FreeABL to the active slot only, reads it back, and puts the stock bootloader back if the copy does not match.</p>
+        <button id="btn-flash" disabled>Flash FreeABL</button>
+      </li>
+      <li>
+        <h3>Reboot</h3>
+        <button id="btn-reset" disabled>Reboot the device</button>
+        <p class="note">FreeABL shows its menu with the chipset, the memory and the storage type.</p>
+      </li>
+    </ol>
+  </section>
+
+  <section class="card tab" id="tab-update" hidden>
+    <p>For a device that already runs FreeABL: its fastboot can write the bootloader. fastboot cannot read it back, so the copy is not verified.</p>
+    <label><span>Your backup (<code>freeabl-backup-SERIAL.tar</code>)</span><input type="file" id="update-backup" accept=".tar"></label>
+    <button id="btn-update">Connect in fastboot mode and update</button>
+  </section>
+
+  <section class="card tab" id="tab-restore" hidden>
+    <label><span>Your backup (<code>freeabl-backup-SERIAL.tar</code>)</span><input type="file" id="restore-backup" accept=".tar"></label>
+    <div class="row">
+      <button id="btn-restore-fb">Restore over fastboot</button>
+      <button id="btn-restore-edl">Restore over EDL (device does not boot)</button>
+    </div>
+    <p class="note">Over EDL the slot recorded in the backup is used; the device must not have changed slot since.</p>
+  </section>
+
+  <section class="card tab" id="tab-drivers" hidden>
+    <h3>Windows</h3>
+    <ul>
+      <li><b>fastboot:</b> install the Google USB Driver, or any WinUSB driver for the device in fastboot mode.</li>
+      <li><b>EDL:</b> in EDL the device appears as <code>QUSB__BULK</code> or <code>Qualcomm HS-USB QDLoader 9008</code> (USB ID <code>05C6:9008</code>).
+        The browser can only reach it through WinUSB: open <a href="https://zadig.akeo.ie/">Zadig</a>, choose Options → List All Devices,
+        pick that device, select <b>WinUSB</b> and click Replace Driver. Qualcomm's QFIL then no longer sees the device until you
+        reinstall its driver.</li>
+    </ul>
+    <h3>Linux</h3>
+    <ul>
+      <li>Let your user open the devices: create <code>/etc/udev/rules.d/51-freeabl.rules</code> with
+        <pre>SUBSYSTEM=="usb", ATTR{idVendor}=="05c6", ATTR{idProduct}=="9008", MODE="0666"
+SUBSYSTEM=="usb", ATTR{idVendor}=="18d1", MODE="0666"</pre>
+        then <code>sudo udevadm control --reload</code> and reconnect the device.</li>
+      <li>EDL: the kernel's <code>qcserial</code> driver takes the device first. Unload it while you flash:
+        <code>sudo modprobe -r qcserial</code>.</li>
+    </ul>
+    <h3>macOS</h3>
+    <p>No driver needed.</p>
+  </section>
+
+  <section class="card">
+    <h2>Log</h2>
+    <pre id="log" aria-live="polite"></pre>
+  </section>
+</main>
+
+<dialog id="confirm">
+  <form method="dialog">
+    <p id="confirm-text"></p>
+    <label><span>Type <code id="confirm-phrase"></code> to continue</span>
+      <input id="confirm-input" autocomplete="off" spellcheck="false">
+    </label>
+    <div class="row">
+      <button value="cancel">Cancel</button>
+      <button value="ok" id="confirm-ok">Continue</button>
+    </div>
+  </form>
+</dialog>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

@@ -77,6 +77,8 @@ over EDL, flashes the active slot only and verifies the copy:
 ./tools/freeabl-flash.py restore -d pockets --loader LOADER     # back to stock
 ```
 
+A web flasher with the same checks is in [`web/`](web/README.md) (not yet run on a device).
+
 ## SD card
 
 - A FAT16/FAT32 partition with `\EFI\BOOT\BOOTAA64.EFI`.
@@ -94,7 +96,8 @@ over EDL, flashes the active slot only and verifies the copy:
 4. to 6. the same for sm8250, sm6115 and sm8550 on stock images from those devices,
    which are not in the repository: the scenarios are skipped when the images are absent
    (paths in each `test/qemu-ll/test-*.sh`);
-7. `tools/freeabl-flash.py` against a simulated device (`test/flash/`).
+7. `tools/freeabl-flash.py` against a simulated device (`test/flash/`);
+8. the web flasher's steps and page against a simulated device (`web/test/`, Node and headless Chrome).
 
 Needs `qemu-system-aarch64`, `qemu-efi-aarch64` (AAVMF), `mtools`, `gdisk`,
 `grub-efi-arm64-bin` / `grub-mkstandalone`.

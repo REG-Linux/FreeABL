@@ -61,3 +61,21 @@ jobs:
             out/SOURCE.txt
             out/FLASHING.md
             out/freeabl-flash.py
+  web:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - name: Vendor bundles match their pinned sources
+        run: web/build-vendor.sh && git diff --exit-code -- web/vendor
+      - name: Steps on the simulated device
+        run: node --test web/test/core.test.mjs
+      - name: Page in headless Chrome (simulated device)
+        run: |
+          npm i --no-save --no-package-lock --prefix web puppeteer-core@25.9.0
+          CHROME=$(command -v google-chrome) node web/test/ui-smoke.mjs
