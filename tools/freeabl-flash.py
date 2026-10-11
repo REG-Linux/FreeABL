@@ -9,6 +9,11 @@
   freeabl-flash.py restore -d DEVICE           write the saved stock ABL back
   freeabl-flash.py reset   -d DEVICE           EDL: reboot the device
 
+Testers: `-d other --soc SOC --untested` flashes a device that is not in the
+list, and `--untested` also lets a listed device through when its chip (MSM)
+ID differs or it was validated with an earlier build only. The stock ABL
+backup and the signature-format check are never skipped.
+
 Rules this tool keeps: it writes one partition only (abl_<active slot>), never
 the partition table, never the active slot, never the other slot. It does not
 flash without a verified backup of the device's stock ABL, nor an image whose
@@ -20,7 +25,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 
 # validated: "current" = this code on this device; "earlier" = an earlier FreeABL
-# build only. SoCs never run on a device have no entry and cannot be flashed.
+# build only. Other devices and SoCs need -d other --soc SOC --untested.
 # msm_id: Sahara MSM ID seen on the device (None = not recorded, not checked).
 DEVICES = {
     'odin': dict(name='AYN Odin', soc='sdm845', mbn=5, validated='current',
@@ -40,7 +45,10 @@ DEVICES = {
                  memory=None, msm_id=None, loader=None,
                  loader_hint='the firehose loader from the Mangmi firmware package'),
 }
+# signature format (MBN header version) of the FreeABL image for each SoC
+SOC_MBN = {'sdm845': 5, 'sm6115': 6, 'sm8250': 6, 'sm8550': 7, 'sm8650': 7, 'sm8750': 7}
 MIN_MV = 3700
+STATE_FILE = None
 SLOTS = ('a', 'b')
 
 
@@ -127,7 +135,17 @@ def edl_run(dev, loader, *args, memory=True):
     if memory and dev['memory']:
         cmd.append(f"--memory={dev['memory']}")
     r = subprocess.run(cmd, capture_output=True, text=True)
-    return r.returncode, r.stdout + r.stderr
+    out = r.stdout + r.stderr
+    # the MSM ID is only shown on the first connection after EDL entry: keep it
+    m = re.search(r'MSM_ID:0x([0-9a-fA-F]+)', out)
+    if m and STATE_FILE and os.path.isfile(STATE_FILE):
+        try:
+            st = json.load(open(STATE_FILE))
+            st['msm_id'] = int(m.group(1), 16)
+            json.dump(st, open(STATE_FILE, 'w'), indent=1)
+        except (OSError, ValueError):
+            pass
+    return r.returncode, out
 
 
 def edl_ok(dev, loader, *args, what):
@@ -174,9 +192,23 @@ def device_dir(args, st):
 
 
 def get_device(args):
+    if args.device == 'other':
+        if not args.soc:
+            die("-d other needs --soc SOC (one of: " + ', '.join(SOC_MBN) + ")")
+        if not args.untested and args.cmd in ('backup', 'flash'):
+            die("-d other is for testers: add --untested (see FLASHING.md, 'Devices not in the list')")
+        return dict(name=f'unlisted {args.soc} device', soc=args.soc, mbn=SOC_MBN[args.soc],
+                    validated='none', memory=args.memory, msm_id=None, loader=None,
+                    loader_hint="the firehose loader from your device's firmware package")
     if args.device not in DEVICES:
         die(f"unknown device '{args.device}' (see 'devices')")
-    return DEVICES[args.device]
+    if args.soc and args.soc != DEVICES[args.device]['soc']:
+        die(f"the {DEVICES[args.device]['name']} is {DEVICES[args.device]['soc']}: "
+            f"for another SoC use -d other --soc {args.soc} --untested")
+    dev = dict(DEVICES[args.device])
+    if args.memory:
+        dev['memory'] = args.memory
+    return dev
 
 
 def confirm(phrase, what):
@@ -234,7 +266,8 @@ def cmd_devices(args):
     for k, d in DEVICES.items():
         st = 'validated' if d['validated'] == 'current' else 'validated with an earlier build only'
         print(f"{k:<12} {d['soc']:<7} {st:<36} {d['name']}")
-    print("\nsm8650 and sm8750 images build but were never run on a device: not offered here.")
+    print(f"\nOther devices (testers): -d other --soc {{{','.join(SOC_MBN)}}} --untested. "
+          f"sm8650 and sm8750 were never run on a device.")
 
 
 def cmd_check(args):
@@ -258,7 +291,7 @@ def cmd_check(args):
     if not mv:
         print("note: battery level unknown: make sure the battery is above 50%")
     os.makedirs(backup_root(args), exist_ok=True)
-    st = dict(serial=serial, slot=slot, product=v['product'], variant=v['variant'],
+    st = dict(serial=serial, slot=slot, msm_id=None, product=v['product'], variant=v['variant'],
               time=time.strftime('%Y-%m-%d %H:%M:%S'))
     json.dump(st, open(state_path(args), 'w'), indent=1)
     print(f"\nOK: device {serial}, active slot {slot}. Saved to {state_path(args)}.")
@@ -274,14 +307,17 @@ def cmd_backup(args):
     dd = device_dir(args, st)
     os.makedirs(dd, exist_ok=True)
     out = edl_ok(dev, loader, 'printgpt', what='connection')
-    m = re.search(r'MSM_ID:0x([0-9a-fA-F]+)', out)
-    msm = int(m.group(1), 16) if m else None
+    msm = load_state(args).get('msm_id')
     if msm is not None and dev['msm_id'] is not None and msm != dev['msm_id']:
-        die(f"EDL reports MSM ID 0x{msm:x}, the {dev['name']} has 0x{dev['msm_id']:x}: wrong device?")
+        if not args.untested:
+            die(f"EDL reports MSM ID 0x{msm:x}, the {dev['name']} has 0x{dev['msm_id']:x}: "
+                f"wrong device? (testers: --untested)")
+        print(f"WARNING: MSM ID 0x{msm:x} differs from the {dev['name']}'s 0x{dev['msm_id']:x} (--untested)")
     if msm is None:
-        print("note: MSM ID not shown (loader already running); SoC not checked")
+        print("note: MSM ID not seen (EDL loader was already running): SoC not checked. "
+              "Reboot to EDL again to have it checked.")
     open(os.path.join(dd, 'gpt.txt'), 'w').write(out)
-    info = dict(device=args.device, soc=dev['soc'], serial=st['serial'], slot=st['slot'],
+    info = dict(device=args.device, soc=dev['soc'], product=st.get('product'), variant=st.get('variant'), serial=st['serial'], slot=st['slot'],
                 msm_id=None if msm is None else f'0x{msm:x}', time=time.strftime('%Y-%m-%d %H:%M:%S'),
                 partitions={})
     for s in SLOTS:
@@ -311,6 +347,11 @@ def cmd_backup(args):
         for s in SLOTS:
             f.write(f"{info['partitions'][f'abl_{s}']['sha256']}  abl_{s}.stock.img\n")
     print(f"\nBackup verified in {dd}. Copy that folder somewhere safe (another disk, the cloud).")
+    if dev['validated'] != 'current':
+        print(f"\nTester report (to add this device to FreeABL): soc {dev['soc']}, "
+              f"MSM ID {info['msm_id'] or 'not seen'}, stock signature v{act}, "
+              f"fastboot product {st.get('product') or '-'}, variant {st.get('variant') or '-'}, "
+              f"storage {dev['memory'] or 'auto'}")
 
 
 def load_backup(args, dev, st):
@@ -319,8 +360,8 @@ def load_backup(args, dev, st):
         info = json.load(open(os.path.join(dd, 'backup.json')))
     except (OSError, ValueError):
         die(f"no verified backup for device {st['serial']}: run 'backup' first")
-    if info['device'] != args.device:
-        die(f"the backup was made for '{info['device']}', not '{args.device}'")
+    if info['device'] != args.device or info['soc'] != dev['soc']:
+        die(f"the backup was made for '{info['device']}' ({info['soc']}), not '{args.device}' ({dev['soc']})")
     p = os.path.join(dd, f"abl_{st['slot']}.stock.img")
     if sha256(p) != info['partitions'][f"abl_{st['slot']}"]['sha256']:
         die(f"{p} changed since the backup was made")
@@ -336,11 +377,18 @@ def cmd_flash(args):
     img = os.path.abspath(args.image or default_image(dev))
     h = check_image(dev, img)
     part = f"abl_{st['slot']}"
-    warn = ''
-    if dev['validated'] != 'current':
+    warn, phrase = '', f"FLASH-{part.upper()}"
+    if dev['validated'] == 'earlier':
         warn = (f"\nWARNING: the {dev['name']} was validated with an earlier FreeABL build only. "
                 f"This build was not run on it yet.")
-    confirm(f"FLASH-{part.upper()}",
+    elif dev['validated'] == 'none':
+        warn = (f"\nWARNING: FreeABL was never run on this device. If it does not boot, you need "
+                f"EDL without Android (button combination or test point) and your backup to recover.")
+    if dev['validated'] != 'current':
+        if not args.untested:
+            die(f"the {dev['name']} is not validated with this build: testers add --untested")
+        phrase = f"FLASH-UNTESTED-{part.upper()}"
+    confirm(phrase,
             f"\nAbout to write {os.path.basename(img)} (sha256 {h[:16]}...)\n"
             f"to {part} of the {dev['name']} {st['serial']} via {args.via}. Nothing else is written.{warn}")
     if args.via == 'edl':
@@ -408,8 +456,12 @@ def main():
     sub.add_parser('check')
     for name in ('backup', 'flash', 'restore', 'reset'):
         p = sub.add_parser(name)
-        p.add_argument('-d', '--device', required=True, choices=sorted(DEVICES))
+        p.add_argument('-d', '--device', required=True, choices=sorted(DEVICES) + ['other'])
         p.add_argument('-l', '--loader', help='EDL firehose loader for the device')
+        p.add_argument('--soc', choices=sorted(SOC_MBN), help='with -d other: the SoC of the device')
+        p.add_argument('--memory', choices=('ufs', 'emmc'), help='storage type for EDL (default: per device, or auto)')
+        p.add_argument('--untested', action='store_true',
+                       help='testers: allow -d other, a different MSM ID, or a device not validated with this build')
         if name == 'backup':
             p.add_argument('--allow-changed', action='store_true',
                            help='keep an older backup even if the device now differs')
@@ -422,6 +474,7 @@ def main():
         args.loader = os.path.abspath(args.loader)
         if not os.path.isfile(args.loader):
             die(f"loader not found: {args.loader}")
+    globals()['STATE_FILE'] = state_path(args)
     globals()['cmd_' + args.cmd](args)
 
 

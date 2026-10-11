@@ -27,8 +27,8 @@ end before you start, and read the [disclaimer](README.md#disclaimer).
 | `airx` | Mangmi Air X (MQ66) | sm6115 | earlier build only | the firehose loader from the Mangmi firmware package |
 
 "Earlier build only": FreeABL ran on this device, but not the current code yet.
-The tool asks you to confirm. The sm8650 and sm8750 images build but were never
-run on a device, so the tool does not offer them.
+Flashing it needs `--untested` (see below). The sm8650 and sm8750 images build
+but were never run on a device.
 
 `./tools/freeabl-flash.py devices` prints this list.
 
@@ -139,6 +139,36 @@ From FreeABL's fastboot, or over EDL if the device no longer reaches fastboot:
 If you need EDL because the device does not boot, `check` cannot run. The state
 from the first `check` is still in the backup folder (`current-device.json`), so
 `restore` works as long as the device and the active slot are the same.
+
+## Devices not in the list (testers)
+
+If you have a device we don't, you can help add it. `--untested` lets the tool
+through where it would otherwise stop:
+
+- `-d other --soc SOC` for a device that is not in the list (SoC: `sdm845`,
+  `sm6115`, `sm8250`, `sm8550`, `sm8650` or `sm8750`);
+- a listed device whose chip (MSM) ID differs from the one we recorded;
+- a device validated with an earlier build only.
+
+```sh
+./tools/freeabl-flash.py check
+./tools/freeabl-flash.py backup -d other --soc sm8650 --untested --loader LOADER [--memory ufs|emmc]
+./tools/freeabl-flash.py flash  -d other --soc sm8650 --untested --loader LOADER
+```
+
+The confirmation then reads `FLASH-UNTESTED-ABL_A`. What `--untested` does
+**not** skip: the unlocked and battery checks, the verified backup of the stock
+ABL, the checksum, and the signature format check. If your stock ABL is signed
+in another format than the FreeABL image for that SoC, the device would not run
+it, and the tool stops whatever the flags.
+
+Before you flash an untested device, make sure you can reach EDL without Android
+(button combination or test point): if FreeABL does not start, that is the only
+way back.
+
+`backup` prints a tester report (SoC, MSM ID, signature format, fastboot product
+and variant, storage). Open an issue with it and whether Android, fastboot and
+the SD card boot worked, and we'll add the device to the list.
 
 ## SD card
 
