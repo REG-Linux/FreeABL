@@ -234,6 +234,7 @@ export async function flash({ via, edl, fb, dev, state, bk, image, imageSha, unt
     if (await writeVerified(edl, part, bk.parts[part])) stop(`stock ${part} restored and verified; FreeABL was not installed`);
     stop(`stock ${part} restore NOT verified: do not reboot; retry the restore`);
   }
+  await fb.connect();
   const serial = await fb.getVar('serialno');
   if (serial !== state.serial) stop('the device in fastboot mode is not the one in the backup');
   try {
@@ -257,6 +258,7 @@ export async function restore({ via, edl, fb, state, bk, confirm, log }) {
     log(`RESTORE VERIFIED: ${part} is stock again.`);
     return;
   }
+  await fb.connect();
   if ((await fb.getVar('serialno')) !== state.serial) stop('the device in fastboot mode is not the one in the backup');
   await fb.flash(part, stock);
   log(`RESTORED ${part}.`);

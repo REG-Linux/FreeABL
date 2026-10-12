@@ -8,6 +8,8 @@
 // - the MSM ID is read in command mode (MSM_HW_ID_READ, or READ_CHIP_ID_V3 on
 //   Sahara 3), and failing to read it or the serial is not fatal;
 // - storage type and sector size follow the device (UFS 4096, eMMC 512);
+// - configure accepts any ACK and, on a NAK that names the loader's own
+//   payload size, retries with it (qdl.js wants specific log lines);
 // - only partition read and write by name, and reset, are exposed: no GPT
 //   write, no erase, no slot change.
 import { Sahara } from "qdl/sahara";
@@ -24,7 +26,10 @@ const CHUNK_SECTORS_BYTES = 64 * 1024;
 
 class FreeablSahara extends Sahara {
   async connect() {
-    let resp = await runWithTimeout(this.cdc.read(0xc * 0x4), 500).catch(() => new Uint8Array());
+    // a WebUSB read that timed out is still pending and takes the next packet:
+    // wait on that same read for the answer to the nop
+    const pending = this.cdc.read(0xc * 0x4);
+    let resp = await runWithTimeout(pending, 500).catch(() => new Uint8Array());
     if (resp.length >= 12 && resp[0] === cmd_t.SAHARA_HELLO_REQ) {
       this.helloVersion = new DataView(resp.buffer, resp.byteOffset).getUint32(8, true);
       return "sahara";
@@ -34,7 +39,7 @@ class FreeablSahara extends Sahara {
     if (resp.length <= 1) {
       try {
         await runWithTimeout(this.cdc.write(new TextEncoder().encode(toXml("nop"))), 1000);
-        resp = await runWithTimeout(this.cdc.read(), 2000).catch(() => new Uint8Array());
+        resp = await runWithTimeout(resp.length ? this.cdc.read() : pending, 2000).catch(() => new Uint8Array());
       } catch {
         resp = new Uint8Array();
       }
@@ -57,7 +62,8 @@ class FreeablSahara extends Sahara {
         if (r instanceof Uint8Array && r.length >= 40) return new DataView(r.buffer, r.byteOffset).getUint32(36, true);
       } else {
         const r = await this.cmdExec(EXEC_MSM_HW_ID_READ);
-        if (r instanceof Uint8Array && r.length >= 8) return new DataView(r.buffer, r.byteOffset).getUint32(4, true);
+        // the MSM ID is bits 32-55 of the 64-bit hardware ID
+        if (r instanceof Uint8Array && r.length >= 8) return new DataView(r.buffer, r.byteOffset).getUint32(4, true) & 0xffffff;
       }
     } catch {
       // not fatal: the SoC is then not checked
@@ -71,7 +77,7 @@ class FreeablSahara extends Sahara {
       this.msmId = await this.readMsmId();
       try { this.serial = await this.cmdGetSerialNum(); } catch { /* not needed */ }
       await this.cmdModeSwitch(sahara_mode_t.SAHARA_MODE_COMMAND);
-      await this.connect();
+      if ((await this.connect()) !== "sahara") throw new Error("EDL: the device did not restart Sahara after the chip ID read: reboot it to EDL and try again");
     }
     // loader upload, as in qdl.js's Sahara.uploadLoader (MIT, comma.ai)
     await this.cmdHello(sahara_mode_t.SAHARA_MODE_IMAGE_TX_PENDING);
@@ -104,15 +110,38 @@ class FreeablFirehose extends Firehose {
     if (memory === "emmc") this.cfg.maxlun = 1;
   }
 
-  // qdl.js insists on "Storage type set to value UFS" in the loader's log
   async configure() {
-    try {
-      return await super.configure();
-    } catch (e) {
-      if (!/storage type not set/.test(String(e?.message || e)) || this.cfg.MemoryName === "UFS") throw e;
-      this.luns = Array.from({ length: this.cfg.maxlun }, (_, i) => i);
-      return true;
+    const enc = new TextEncoder();
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await this.cdc.write(enc.encode(toXml("configure", {
+        MemoryName: this.cfg.MemoryName,
+        Verbose: 0,
+        AlwaysValidate: 0,
+        MaxDigestTableSizeInBytes: 2048,
+        MaxPayloadSizeToTargetInBytes: this.cfg.MaxPayloadSizeToTargetInBytes,
+        ZLPAwareHost: this.cfg.ZLPAwareHost,
+        SkipStorageInit: this.cfg.SkipStorageInit,
+        SkipWrite: this.cfg.SkipWrite,
+      })), false);
+      const data = await this.waitForData();
+      const rsp = this.xml.getResponse(data);
+      const logs = this.xml.getLog(data);
+      if (rsp.value === "ACK") {
+        const max = Number(rsp.MaxPayloadSizeToTargetInBytes);
+        if (max > 0 && max < this.cfg.MaxPayloadSizeToTargetInBytes) this.cfg.MaxPayloadSizeToTargetInBytes = max;
+        this.luns = Array.from({ length: this.cfg.maxlun }, (_, i) => i);
+        return true;
+      }
+      if (!("value" in rsp)) throw new Error("EDL: no answer from the loader after the upload: reboot the device to EDL and try again");
+      const max = Number(rsp.MaxPayloadSizeToTargetInBytesSupported || rsp.MaxPayloadSizeToTargetInBytes);
+      if (max > 0 && max !== this.cfg.MaxPayloadSizeToTargetInBytes) {
+        this.cfg.MaxPayloadSizeToTargetInBytes = max;
+        continue;
+      }
+      const why = logs.filter((l) => /error|fail|not support/i.test(l)).slice(-2).join("; ");
+      throw new Error(`EDL: the loader refused the configuration for ${this.cfg.MemoryName}${why ? ` (${why})` : ""}: check the storage type`);
     }
+    throw new Error("EDL: the loader kept refusing the configuration");
   }
 }
 

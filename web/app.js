@@ -145,10 +145,11 @@ async function backupFrom(input, dev, st) {
 async function doUpdate() {
   const dev = selection();
   log('== Update over fastboot');
-  state = await core.check(fastbootDriver(), table, log);
+  const fb = fastbootDriver();
+  state = await core.check(fb, table, log);
   const bk = await backupFrom($('update-backup'), dev, state);
   const img = await image(dev);
-  await core.flash({ via: 'fastboot', fb: fastbootDriver(), dev, state, bk, image: img.bytes, imageSha: img.sha,
+  await core.flash({ via: 'fastboot', fb, dev, state, bk, image: img.bytes, imageSha: img.sha,
                      untested: $('untested').checked, confirm: confirmPhrase, log });
 }
 
@@ -156,11 +157,12 @@ async function doRestore(via) {
   const dev = selection(false);
   log(`== Restore over ${via}`);
   let st = null;
-  if (via === 'fastboot') st = await core.check(fastbootDriver(), table, log);
+  const fb = via === 'fastboot' ? fastbootDriver() : null;
+  if (fb) st = await core.check(fb, table, log);
   const bk = await backupFrom($('restore-backup'), dev, st);
   st = st || { serial: bk.info.serial, slot: bk.info.slot };
   const e = via === 'edl' ? (await edlSession(dev)).driver : null;
-  await core.restore({ via, edl: e, fb: fastbootDriver(), state: st, bk, confirm: confirmPhrase, log });
+  await core.restore({ via, edl: e, fb, state: st, bk, confirm: confirmPhrase, log });
   if (via === 'edl') { await e.reset(); edl = null; log('Rebooting.'); }
 }
 

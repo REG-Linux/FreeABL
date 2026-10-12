@@ -26,7 +26,7 @@ echo "== 6. LinuxLoader SM8550 (QEMU, AYANEO Pocket S flat build)"
 echo "== 7. flash tool (simulated device)"
 python3 "$HERE/flash/test-flash.py" | tail -1; [ "${PIPESTATUS[0]}" = 0 ] || rc=1
 echo "== 8. web flasher (simulated device)"
-node --test "$HERE/../web/test/core.test.mjs" 2>&1 | grep -E '^# (pass|fail)' ; [ "${PIPESTATUS[0]}" = 0 ] || rc=1
+node --test "$HERE/../web/test/core.test.mjs" "$HERE/../web/test/usb.test.mjs" 2>&1 | grep -E '^# (pass|fail)' ; [ "${PIPESTATUS[0]}" = 0 ] || rc=1
 if [ -d "$HERE/../web/node_modules/puppeteer-core" ]; then node "$HERE/../web/test/ui-smoke.mjs" | tail -1 || rc=1
 else echo "page test skipped (npm i --no-save --prefix web puppeteer-core@25.9.0)"; fi
 echo; [ $rc = 0 ] && echo "ALL TESTS PASS" || echo "SOME TESTS FAILED"; exit $rc

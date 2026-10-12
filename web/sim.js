@@ -42,11 +42,14 @@ export class SimDevice {
     if (corrupt) b[100] ^= 0xff;
   }
 
+  // a new driver each time, like usb.fastbootDriver(): unusable until connect()
   get fastboot() {
+    let on = false;
     return {
-      connect: async () => {},
-      getVar: async (k) => (k in this.vars ? String(this.vars[k]) : null),
+      connect: async () => { on = true; },
+      getVar: async (k) => (on && k in this.vars ? String(this.vars[k]) : null),
       flash: async (part, bytes) => {
+        if (!on) throw new Error('not connected');
         if (this.critical) throw new Error("FAILED (remote: 'Flashing is not allowed for Critical Partitions')");
         this.write(part, bytes, false);
       },

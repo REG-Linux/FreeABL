@@ -5,8 +5,11 @@ same checks as `tools/freeabl-flash.py` (see [FLASHING.md](../FLASHING.md)).
 Chrome, Edge or another Chromium browser on a computer.
 
 **Status: not yet run on a device.** Every step is tested against a simulated
-device; the USB layer (fastboot.js, qdl.js) has not been tried on our devices.
-Run `spike.html` (read-only) on a device first.
+device, and the real USB code (fastboot.js, qdl.js, `src/edl-qdl.js`) runs
+against a fake phone that speaks fastboot, Sahara 2/3 and Firehose byte by byte
+(`test/fakeusb.mjs`, modelled on bkerler/edl logs of our devices). That checks
+our side of the protocol, not how a real boot ROM or loader behaves. Run
+`spike.html` (read-only) on a device first.
 
 | File | |
 |---|---|
@@ -15,6 +18,7 @@ Run `spike.html` (read-only) on a device first.
 | `usb.js` | WebUSB drivers: fastboot through fastboot.js, EDL through qdl.js |
 | `src/edl-qdl.js` | EDL driver on qdl.js: Sahara 3 hello, MSM ID, UFS/eMMC, partition read/write only |
 | `sim.js` | simulated device (`index.html?sim=1`, tests) |
+| `test/fakeusb.mjs` | fake phone behind `navigator.usb` for the USB tests |
 | `spike.html` | read-only probe: fastboot variables, EDL connection, `abl_a`/`abl_b` read |
 | `vendor/` | bundles built by `build-vendor.sh` from pinned commits; licences in `vendor/LICENSES.md` |
 | `../devices.json` | the device table (kept equal to the CLI's by `test/flash/test-flash.py`) |
@@ -33,6 +37,7 @@ WebUSB needs `localhost` or HTTPS.
 
 ```sh
 node --test web/test/core.test.mjs                     # steps on the simulated device
+node --test web/test/usb.test.mjs                      # real USB code vs a fake phone
 npm i --no-save --prefix web puppeteer-core@25.9.0
 node web/test/ui-smoke.mjs                              # the page in headless Chrome, ?sim=1
 web/build-vendor.sh && git diff --exit-code web/vendor # bundles up to date (needs bun)

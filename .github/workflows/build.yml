@@ -75,6 +75,8 @@ jobs:
         run: web/build-vendor.sh && git diff --exit-code -- web/vendor
       - name: Steps on the simulated device
         run: node --test web/test/core.test.mjs
+      - name: Real USB code against a fake phone (fastboot, Sahara 2/3, Firehose)
+        run: node --test web/test/usb.test.mjs
       - name: Page in headless Chrome (simulated device)
         run: |
           npm i --no-save --no-package-lock --prefix web puppeteer-core@25.9.0
