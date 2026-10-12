@@ -6,7 +6,8 @@
 // Pocket Max (SM8250) and Pocket S (SM8550).
 //
 // Like WebUSB, a pending transferIn() takes the next packet even after the
-// caller stopped waiting for it.
+// caller stopped waiting for it. lag: { hello, configure, read, program } in
+// ms delays those replies, for a slow loader or a busy computer.
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -72,8 +73,9 @@ class FakeUsbDevice {
   check() { if (this.gone) throw new Error('NetworkError: device disconnected'); }
 
   send(bytes) {
-    this.inq.push(bytes instanceof Uint8Array ? bytes : enc.encode(bytes));
-    this.pump();
+    const b = bytes instanceof Uint8Array ? bytes : enc.encode(bytes);
+    const go = () => { this.inq.push(b); this.pump(); };
+    if (this.lag) setTimeout(go, this.lag); else go();
   }
 
   pump() {
@@ -166,10 +168,12 @@ class EdlUsb extends FakeUsbDevice {
 
   hello() {
     const ph = this.phone;
+    this.lag = ph.lag.hello ?? 0;
     this.send(u32(0x01, 0x30, ph.sahara, 1, 0x400, 0, 0, 0, 0, 0, 0, 0));
   }
 
   async out(b) {
+    this.lag = 0;
     if (this.phone.edl === 'firehose') return this.firehose(b);
     return this.pbl(b);
   }
@@ -258,6 +262,7 @@ class EdlUsb extends FakeUsbDevice {
       p.got += b.length;
       if (p.got < p.len) return;
       this.programTo = null;
+      this.lag = ph.lag.program ?? 0;
       const data = concat(p.parts).subarray(0, p.len);
       ph.writes.push({ lun: p.lun, start: p.start, sectors: p.len / ph.sectorSize, via: 'edl' });
       ph.luns[p.lun].set(ph.corrupt ? flip(data) : data, p.start * ph.sectorSize);
@@ -271,6 +276,7 @@ class EdlUsb extends FakeUsbDevice {
     const a = {};
     for (const [, k, val] of rest.matchAll(/(\w+)="([^"]*)"/g)) a[k] = val;
     ph.firehoseCmds.push(tag);
+    this.lag = ph.lag[tag] ?? 0;
     const ss = ph.sectorSize;
     if (tag === 'nop') return this.rsp('ACK');
     if (tag === 'configure') {
@@ -329,9 +335,9 @@ function concat(parts) {
 export class FakePhone {
   constructor({ sahara = 3, msmId = 0x2520e1, hwidTop = 0, serial = 0x1056a040, chipIdFails = false, commandMode = true,
                 memory = 'ufs', loader = new Uint8Array(9000).map((_, i) => (i * 7) & 0xff), maxPayload = 1048576,
-                configureLogs = true, critical = false, corrupt = false, vars = {}, stockA, stockB } = {}) {
+                configureLogs = true, critical = false, corrupt = false, lag = {}, vars = {}, stockA, stockB } = {}) {
     Object.assign(this, { sahara, msmId, hwidTop, serial, chipIdFails, commandMode, memory, loader, maxPayload,
-                          configureLogs, critical, corrupt });
+                          configureLogs, critical, corrupt, lag });
     this.vars = { serialno: 'FAKE1234', unlocked: 'yes', product: 'kalama', variant: 'SGP UFS', 'current-slot': 'a',
                   'battery-voltage': '4100', 'has-slot:abl': 'yes', ...vars };
     this.sectorSize = memory === 'emmc' ? 512 : 4096;

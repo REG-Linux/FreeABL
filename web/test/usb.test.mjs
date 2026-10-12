@@ -113,6 +113,21 @@ test('page reloaded with the loader already running: reconnects without a new up
   assert.ok(startsWith(await edl.read('abl_a'), STOCK7));
 });
 
+test('slow device: late replies are waited for, never lost', async () => {
+  // each reply comes after qdl.js's own timeouts (1 s hello, 1-3 s firehose, 2 s data)
+  const ph = attach(new FakePhone({ stockA: STOCK7, lag: { hello: 1500, configure: 4500, read: 2500, program: 4500 } }).plug('edl'));
+  const edl = usb.edlDriver(quiet);
+  assert.equal((await edl.connect(ph.loader, 'ufs')).msmId, 0x2520e1);
+  ph.lag.read = 0;
+  const { lun, start } = await edl.locate('abl_a');
+  ph.lag.read = 2500;
+  assert.ok(startsWith(STOCK7, await edl.firehose.cmdReadBuffer(lun, start, 1)));
+  await edl.write('abl_a', FREE7);
+  ph.lag = {};
+  assert.ok(startsWith(await edl.read('abl_a'), FREE7));
+  assert.deepEqual(ph.writes.map((w) => ph.where(w)), ['abl_a']);
+});
+
 // --- the page's steps (core.js) with the real drivers -------------------------
 async function install(ph, device, stock, image) {
   attach(ph);

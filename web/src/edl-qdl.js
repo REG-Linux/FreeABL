@@ -10,6 +10,9 @@
 // - storage type and sector size follow the device (UFS 4096, eMMC 512);
 // - configure accepts any ACK and, on a NAK that names the loader's own
 //   payload size, retries with it (qdl.js wants specific log lines);
+// - no reply is ever lost to a timeout (see PatientUsb), and a step waits for
+//   30 s of silence before giving up, so a slow loader or a busy computer only
+//   makes things slower;
 // - only partition read and write by name, and reset, are exposed: no GPT
 //   write, no erase, no slot change.
 import { Sahara } from "qdl/sahara";
@@ -23,13 +26,63 @@ import { toXml } from "qdl/xml";
 const EXEC_MSM_HW_ID_READ = 0x02;
 const EXEC_READ_CHIP_ID_V3 = 0x0a;
 const CHUNK_SECTORS_BYTES = 64 * 1024;
+const SILENCE_S = 30;
+
+// WebUSB cannot cancel a USB read: one that timed out still takes the next
+// packet. qdl.js waits with such timeouts, so a reply that comes late is lost.
+// Here a timed wait leaves the read running and keeps its packet for the next
+// wait, and every timed wait of the EDL steps goes through next().
+class PatientUsb extends usbClass {
+  packets = [];
+  transfer = null;
+  error = null;
+
+  /** The next packet, or null after ms without one. */
+  async next(ms) {
+    if (!this.packets.length && !this.error) {
+      this.transfer ??= super.read().then((p) => { this.packets.push(p); }, (e) => { this.error = e; })
+        .finally(() => { this.transfer = null; });
+      let timer;
+      await Promise.race([this.transfer, new Promise((r) => { timer = setTimeout(r, ms); })]);
+      clearTimeout(timer);
+    }
+    if (this.packets.length) return this.packets.shift();
+    if (this.error) throw this.error;
+    return null;
+  }
+
+  // qdl.js's reads without a timeout (Sahara, raw data) come here too
+  async read(length = 0) {
+    if (length) return super.read(length);
+    for (;;) {
+      const p = await this.next(60_000);
+      if (p) return p;
+    }
+  }
+
+  /** length bytes, or an error after SILENCE_S without data. */
+  async readExact(length) {
+    const parts = [];
+    let got = 0;
+    while (got < length) {
+      const p = await this.next(SILENCE_S * 1000);
+      if (!p) throw new Error("EDL: the device stopped sending data");
+      parts.push(p);
+      got += p.length;
+    }
+    const out = new Uint8Array(got);
+    let o = 0;
+    for (const p of parts) { out.set(p, o); o += p.length; }
+    return out;
+  }
+}
 
 class FreeablSahara extends Sahara {
   async connect() {
-    // a WebUSB read that timed out is still pending and takes the next packet:
-    // wait on that same read for the answer to the nop
-    const pending = this.cdc.read(0xc * 0x4);
-    let resp = await runWithTimeout(pending, 500).catch(() => new Uint8Array());
+    // the boot ROM sends its hello when the host opens the device: if it is
+    // not there, ask with a nop (a loader already running answers it). A
+    // late hello is not lost: the next read gets it.
+    let resp = (await this.cdc.next(1000)) ?? new Uint8Array();
     if (resp.length >= 12 && resp[0] === cmd_t.SAHARA_HELLO_REQ) {
       this.helloVersion = new DataView(resp.buffer, resp.byteOffset).getUint32(8, true);
       return "sahara";
@@ -39,9 +92,13 @@ class FreeablSahara extends Sahara {
     if (resp.length <= 1) {
       try {
         await runWithTimeout(this.cdc.write(new TextEncoder().encode(toXml("nop"))), 1000);
-        resp = await runWithTimeout(resp.length ? this.cdc.read() : pending, 2000).catch(() => new Uint8Array());
+        resp = (await this.cdc.next(5000)) ?? new Uint8Array();
       } catch {
         resp = new Uint8Array();
+      }
+      if (resp.length >= 12 && resp[0] === cmd_t.SAHARA_HELLO_REQ) {
+        this.helloVersion = new DataView(resp.buffer, resp.byteOffset).getUint32(8, true);
+        return "sahara";
       }
       if (new TextDecoder().decode(resp).includes("<?xml")) return "firehose";
       if (resp[0] === cmd_t.SAHARA_END_TRANSFER) return "sahara";
@@ -110,6 +167,35 @@ class FreeablFirehose extends Firehose {
     if (memory === "emmc") this.cfg.maxlun = 1;
   }
 
+  // replaces qdl.js's, which gives up after 1 to 3 s without data
+  async waitForData() {
+    const dec = new TextDecoder();
+    let text = "";
+    while (!text.includes("<response")) {
+      const p = await this.cdc.next(SILENCE_S * 1000);
+      if (!p) break;
+      text += dec.decode(p);
+    }
+    return new TextEncoder().encode(text);
+  }
+
+  // qdl.js's cmdReadBuffer, with patient waits
+  async cmdReadBuffer(lun, startSector, sectors) {
+    await this.cdc.write(new TextEncoder().encode(toXml("read", {
+      SECTOR_SIZE_IN_BYTES: this.cfg.SECTOR_SIZE_IN_BYTES,
+      num_partition_sectors: sectors,
+      physical_partition_number: lun,
+      start_sector: startSector,
+    })));
+    let rsp = this.xml.getResponse(await this.waitForData());
+    if (rsp.value !== "ACK") throw new Error("Failed to read buffer: negative response code");
+    if (rsp.rawmode !== "true") throw new Error("Failed to read buffer: wrong mode");
+    const buffer = await this.cdc.readExact(this.cfg.SECTOR_SIZE_IN_BYTES * sectors);
+    rsp = this.xml.getResponse(await this.waitForData());
+    if (rsp.value !== "ACK") throw new Error("Failed to read buffer: negative response code");
+    return buffer;
+  }
+
   async configure() {
     const enc = new TextEncoder();
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -154,7 +240,7 @@ export class QdlEdl {
   }
 
   async connect(loader, memory) {
-    this.cdc = new usbClass();
+    this.cdc = new PatientUsb();
     await this.cdc.connect();
     const sahara = new FreeablSahara(this.cdc, loader.buffer.slice(loader.byteOffset, loader.byteOffset + loader.byteLength));
     let mode = await sahara.connect();
