@@ -62,13 +62,26 @@
     <ol class="steps">
       <li>
         <h3>Check</h3>
-        <p>Boot the device to fastboot mode (often Volume Down + Power from off) and connect it.</p>
+        <p><b>Device in Android?</b> Turn on USB debugging (Settings → About → tap Build number seven times, then
+          Settings → System → Developer options → USB debugging), connect it, and let the page read it and restart it in fastboot mode:</p>
+        <div class="row">
+          <button id="btn-adb">Connect over USB debugging</button>
+          <button id="btn-adb-fastboot" disabled>Restart in fastboot mode</button>
+        </div>
+        <p class="note">If your device is not recognised, or you cannot or do not want to turn on USB debugging, boot it to
+          fastboot mode yourself: power it off, then hold the key combination (often Volume Down + Power).</p>
+        <p>With the device in fastboot mode:</p>
         <button id="btn-check">Connect in fastboot mode and check</button>
       </li>
       <li>
         <h3>Back up the stock bootloader</h3>
-        <p>Boot the device to EDL: from fastboot, <code>fastboot reboot</code>, let Android start, then
-          <code>adb reboot edl</code>; or the device's EDL button combination. The screen stays black.</p>
+        <p>Boot the device to EDL. The screen stays black in EDL.</p>
+        <div class="row">
+          <button id="btn-fb-android" disabled>Restart Android</button>
+          <button id="btn-adb-edl">Connect over USB debugging and restart in EDL</button>
+        </div>
+        <p class="note">If your device is not recognised, or USB debugging is off: <code>adb reboot edl</code> from a computer,
+          or the device's own way into EDL (a key combination, an EDL cable or a test point: see FLASHING.md).</p>
         <button id="btn-backup" disabled>Connect in EDL and back up</button>
         <p class="note">The backup downloads as <code>freeabl-backup-SERIAL-androidVERSION-PATCH.tar</code>. Keep it safe: it is the way back to
           your stock bootloader on this Android build. After an Android update, the flasher makes you back up again: keep the newest one.</p>

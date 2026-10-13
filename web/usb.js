@@ -3,6 +3,7 @@
 // EDL through qdl.js (see vendor/LICENSES.md).
 import * as fastboot from './vendor/fastboot.min.mjs';
 import { QdlEdl } from './vendor/edl-qdl.mjs';
+import { WebAdb } from './vendor/adb.mjs';
 
 // the device is open in another program: say which ones usually do it
 function inUse(e, edl) {
@@ -32,6 +33,13 @@ export function fastbootDriver(log) {
     },
     reboot: async () => dev.reboot(''),
   };
+}
+
+export function adbDriver(log) {
+  const adb = new WebAdb(log);
+  const connect = adb.connect.bind(adb);
+  adb.connect = () => connect().catch((e) => { throw inUse(e, false); });
+  return adb;
 }
 
 export function edlDriver(log) {

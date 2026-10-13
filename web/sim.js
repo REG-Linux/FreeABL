@@ -119,7 +119,25 @@ export class SimDevice {
         if (this.critical) throw new Error("FAILED (remote: 'Flashing is not allowed for Critical Partitions')");
         this.write(part, bytes, false);
       },
-      reboot: async () => {},
+      reboot: async () => { (this.reboots ||= []).push('android'); },
+    };
+  }
+
+  // in Android with USB debugging: what the page reads, and the reboots it asks for
+  get adb() {
+    let on = false;
+    return {
+      connect: async () => { on = true; },
+      props: async () => {
+        if (!on) throw new Error('not connected');
+        const a = this.androidProps || {};
+        return { 'ro.serialno': 'ANDROID0001', 'ro.product.manufacturer': 'AYANEO', 'ro.product.model': 'Pocket S',
+                 'ro.product.board': 'kalama', 'ro.build.version.release': '13', 'ro.build.version.security_patch': '2023-06-05',
+                 'ro.system.build.fingerprint': 'qti/qssi/qssi:13/TKQ1.230811.002/2840:user/release-keys',
+                 'ro.boot.slot_suffix': `_${this.vars['current-slot']}`, 'ro.boot.verifiedbootstate': 'orange',
+                 'ro.boot.flash.locked': this.vars.unlocked === 'yes' ? '0' : '1', ...a };
+      },
+      reboot: async (mode) => { (this.reboots ||= []).push(mode); on = false; },
     };
   }
 

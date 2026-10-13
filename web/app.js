@@ -12,6 +12,8 @@ let edl = null;        // connected EDL session
 let made = null;       // backup made in this session
 let proven = null;     // parsed backup the user proved they saved
 let sim = null;
+let adb = null;        // device in Android, connected over USB debugging
+let fb = null;         // the fastboot connection of the check
 
 function log(msg) {
   logEl.textContent += msg + '\n';
@@ -49,6 +51,7 @@ function simDevice() {
   return sim;
 }
 const fastbootDriver = () => (SIM ? simDevice().fastboot : usb.fastbootDriver(log));
+const adbDriver = () => (SIM ? simDevice().adb : usb.adbDriver(log));
 async function edlSession(dev) {
   if (edl) return edl;
   const loader = (await readFile($('loader'))) || (SIM ? new Uint8Array(1) : null);
@@ -91,12 +94,39 @@ function download(bytes, name) {
 }
 
 // --- install ----------------------------------------------------------------
+async function doAdb() {
+  const dev = selection(false);
+  log('== Device in Android (USB debugging)');
+  adb = adbDriver();
+  await core.androidCheck(adb, dev, log);
+  log('Read only: nothing was changed. Next: restart it in fastboot mode.');
+}
+
+async function doAdbReboot(mode) {
+  if (!adb) {
+    log('== Device in Android (USB debugging)');
+    adb = adbDriver();
+    await core.androidCheck(adb, selection(false), log);
+  }
+  await adb.reboot(mode);
+  adb = null;
+  log(mode === 'bootloader' ? 'Restarting in fastboot mode: when it shows the fastboot screen, use "Connect in fastboot mode and check".'
+                            : 'Restarting in EDL (the screen stays black): then use "Connect in EDL and back up".');
+}
+
 async function doCheck() {
-  edl = null; made = null; proven = null; sim = null;
+  edl = null; made = null; proven = null; sim = SIM ? sim : null;
   const dev = selection();
   log(`== Check (${dev.name})`);
-  state = await core.check(fastbootDriver(), table, log);
+  fb = fastbootDriver();
+  state = await core.check(fb, table, log);
   log(`OK: device ${state.serial}, active slot ${state.slot}. Next: boot it to EDL and back up.`);
+}
+
+async function doFbAndroid() {
+  await fb.reboot();
+  fb = null;
+  log('Android is starting. When it is up, restart it in EDL.');
 }
 
 async function doBackup() {
@@ -213,6 +243,8 @@ function refresh() {
   } catch (e) { note = e.message; }
   $('device-note').textContent = note;
   $('btn-backup').disabled = !state;
+  $('btn-adb-fastboot').disabled = !adb;
+  $('btn-fb-android').disabled = !fb;
   $('backup-proof').disabled = !made;
   $('btn-dump').disabled = !made;
   $('btn-flash').disabled = !proven;
@@ -230,8 +262,12 @@ async function init() {
   if (SIM) $('sim-banner').hidden = false;
   else if (!('usb' in navigator)) $('nousb').hidden = false;
   if (!SIM) usb = await import('./usb.js');
-  const reset = () => { state = null; edl = null; made = null; proven = null; sim = null; refresh(); };
+  const reset = () => { state = null; edl = null; made = null; proven = null; sim = null; adb = null; fb = null; refresh(); };
   ['device', 'soc', 'memory', 'untested'].forEach((id) => $(id).addEventListener('change', reset));
+  $('btn-adb').onclick = (e) => run(e.target, doAdb);
+  $('btn-adb-fastboot').onclick = (e) => run(e.target, () => doAdbReboot('bootloader'));
+  $('btn-adb-edl').onclick = (e) => run(e.target, () => doAdbReboot('edl'));
+  $('btn-fb-android').onclick = (e) => run(e.target, doFbAndroid);
   $('btn-check').onclick = (e) => run(e.target, doCheck);
   $('btn-backup').onclick = (e) => run(e.target, doBackup);
   $('backup-proof').onchange = (e) => run(e.target, doProve);

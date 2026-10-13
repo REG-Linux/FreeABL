@@ -45,8 +45,19 @@ try {
 
   await page.select('#device', 'pockets');
   ok('flash locked before anything', await page.$eval('#btn-flash', (b) => b.disabled));
+  await page.click('#btn-adb');
+  await until('Read only: nothing was changed');
+  ok('Android read over USB debugging', (await log()).includes('FreeABL was run on this exact Android build'));
+  await page.click('#btn-adb-fastboot');
+  await until('Restarting in fastboot mode');
   await page.click('#btn-check');
   await until('active slot a');
+  await page.click('#btn-fb-android');
+  await until('Android is starting');
+  await page.click('#btn-adb-edl');
+  await until('Restarting in EDL');
+  ok('reboots asked: fastboot, Android, EDL', await page.evaluate(() => window.freeablSim.reboots.join() === 'bootloader,android,edl'),
+     await page.evaluate(() => String(window.freeablSim.reboots)));
   ok('check passes', (await log()).includes('OK: device SIM12345'));
   await page.click('#btn-backup');
   await until('Backup verified');

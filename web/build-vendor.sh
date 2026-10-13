@@ -4,6 +4,8 @@
 #   fastboot.min.mjs  kdrag0n/fastboot.js (MIT), its committed dist/ build
 #   edl-qdl.mjs       web/src/edl-qdl.js bundled with commaai/qdl.js (MIT) and its
 #                     dependencies, by bun
+#   adb.mjs           web/src/adb-web.js bundled with Tango's ya-webadb (MIT), the
+#                     versions locked in web/src/adb/package-lock.json, by bun
 # Needs git and bun. The output is committed; CI checks it is up to date.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -28,9 +30,17 @@ cp "$HERE/src/edl-qdl.js" "$W/edl-qdl.js"
 (cd "$W" && bun build edl-qdl.js --target=browser --format=esm --minify-syntax --minify-whitespace \
    --outfile "$OUT/edl-qdl.mjs" >/dev/null)
 
+mkdir -p "$W/adb"
+cp "$HERE/src/adb/package.json" "$HERE/src/adb/package-lock.json" "$W/adb/"
+(cd "$W/adb" && npm ci --silent --no-audit --no-fund)
+cp "$HERE/src/adb-web.js" "$W/adb/adb-web.js"
+(cd "$W/adb" && bun build adb-web.js --target=browser --format=esm --minify-syntax --minify-whitespace \
+   --outfile "$OUT/adb.mjs" >/dev/null)
+
 {
   echo "fastboot.min.mjs: kdrag0n/fastboot.js $FASTBOOT_JS"
   echo "edl-qdl.mjs: web/src/edl-qdl.js + commaai/qdl.js $QDL_JS (bun.lock)"
+  echo "adb.mjs: web/src/adb-web.js + @yume-chan/adb 2.6.4, adb-daemon-webusb 2.3.2, adb-credential-web 2.1.0 (web/src/adb/package-lock.json)"
 } > "$OUT/SOURCES.txt"
-(cd "$OUT" && sha256sum fastboot.min.mjs edl-qdl.mjs >> SOURCES.txt)
+(cd "$OUT" && sha256sum fastboot.min.mjs edl-qdl.mjs adb.mjs >> SOURCES.txt)
 cat "$OUT/SOURCES.txt"

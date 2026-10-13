@@ -327,3 +327,24 @@ test('wrong device: backup of one, restore or flash on another, swap between fas
   await core.edlConnect(edl2, x.dev, new Uint8Array(1), false, quiet);
   await assert.rejects(core.backup(edl2, x.dev, st2, null, quiet), /device in fastboot is chip aaaa0001, the device in EDL chip bbbb0002: not the same device/);
 });
+
+// --- device in Android, USB debugging ---------------------------------------------
+test('Android over USB debugging: what the device is, early warnings, reboots', async () => {
+  const dev = core.resolveDevice(table, { device: 'pockets' });
+  const said = [];
+  const sim = new SimDevice({ stockA: STOCK7, stockB: STOCK7 });
+  const adb = sim.adb;
+  const r = await core.androidCheck(adb, dev, (m) => said.push(m));
+  assert.equal(r.android.patch, '2023-06-05');
+  assert.ok(said.some((m) => /AYANEO Pocket S \(kalama\)/.test(m)));
+  assert.ok(said.some((m) => /exact Android build/.test(m)), said.join('\n'));
+  await adb.reboot('edl');
+  assert.deepEqual(sim.reboots, ['edl']);
+  const other = new SimDevice({ stockA: STOCK7, stockB: STOCK7, vars: { unlocked: 'no' } });
+  other.androidProps = { 'ro.build.version.security_patch': '2025-01-05' };
+  const s2 = [];
+  await core.androidCheck(other.adb, dev, (m) => s2.push(m));
+  assert.ok(s2.some((m) => /bootloader is locked/.test(m)), s2.join('\n'));
+  assert.ok(s2.some((m) => /will need tester mode/.test(m)), s2.join('\n'));
+  assert.equal(other.writes.length, 0);
+});

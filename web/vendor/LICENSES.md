@@ -6,6 +6,9 @@ The web flasher (GPL-3.0-or-later, see ../../LICENSE) loads two bundles built by
 - `fastboot.min.mjs`: fastboot.js (MIT) with zip.js (BSD-3-Clause).
 - `edl-qdl.mjs`: FreeABL's `web/src/edl-qdl.js` (GPL-3.0-or-later) with qdl.js (MIT),
   tiny-struct (MIT), fast-xml-parser (MIT), strnum (MIT) and crc-32 (Apache-2.0).
+- `adb.mjs`: FreeABL's `web/src/adb-web.js` (GPL-3.0-or-later) with Tango's ya-webadb
+  packages (MIT): @yume-chan/adb, adb-daemon-webusb, adb-credential-web, async, event,
+  no-data-view, stream-extra and struct.
 
 ## fastboot.js
 
@@ -376,3 +379,39 @@ SOFTWARE.
    limitations under the License.
 ```
 
+## ya-webadb (@yume-chan packages)
+
+- @yume-chan/adb: Copyright (c) 2020-2025 Simon Chan
+- @yume-chan/adb-daemon-webusb: Copyright (c) 2020-2025 Simon Chan
+- @yume-chan/adb-credential-web: Copyright (c) 2020-2025 Simon Chan
+- @yume-chan/async: Copyright (c) 2019 Simon Chan
+- @yume-chan/event: Copyright (c) 2020-2025 Simon Chan
+- @yume-chan/no-data-view: Copyright (c) 2020-2025 Simon Chan
+- @yume-chan/stream-extra: Copyright (c) 2020-2025 Simon Chan
+- @yume-chan/struct: Copyright (c) 2020-2025 Simon Chan
+
+Each is licensed under the MIT License (https://github.com/yume-chan/ya-webadb):
+
+```
+MIT License
+
+Copyright (c) 2020-2025 Simon Chan
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```

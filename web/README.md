@@ -19,7 +19,8 @@ modelled on bkerler/edl logs and the Portal's loader). On other devices, run
 |---|---|
 | `index.html`, `app.js`, `style.css` | the page |
 | `core.js` | the checks and steps, independent of USB (shared rules with the CLI) |
-| `usb.js` | WebUSB drivers: fastboot through fastboot.js, EDL through qdl.js |
+| `usb.js` | WebUSB drivers: fastboot through fastboot.js, EDL through qdl.js, ADB through ya-webadb |
+| `src/adb-web.js` | ADB driver on ya-webadb (`src/adb/package-lock.json`): properties and reboot to fastboot or EDL only |
 | `src/edl-qdl.js` | EDL driver on qdl.js: Sahara 3 hello, MSM ID, UFS/eMMC, partition list, read and write only |
 | `sim.js` | simulated device (`index.html?sim=1`, tests) |
 | `test/fakeusb.mjs` | fake phone behind `navigator.usb` for the USB tests |

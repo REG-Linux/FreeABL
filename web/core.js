@@ -5,6 +5,7 @@
 // backup of the stock ABL; the image's signature format must match the stock ABL's.
 //
 // Drivers (real ones in usb.js, simulated ones in sim.js):
+//   adb:      connect(), props() -> {name: value}, reboot('bootloader'|'edl')
 //   fastboot: connect(), getVar(name) -> string|null, flash(part, bytes), reboot()
 //   edl:      connect(loaderBytes, memory) -> {msmId: number|null}, partitions() ->
 //             [{name, lun, start, sectors, bytes}], read(part, maxBytes?) -> bytes,
@@ -269,6 +270,29 @@ export async function checkImage(dev, name, bytes, sums, log) {
 }
 
 // --- steps ------------------------------------------------------------------
+/**
+ * A device in Android with USB debugging: say what it is and warn early (locked
+ * bootloader, an Android build FreeABL was not run on). Nothing is written; the
+ * fastboot check that follows is the one that counts.
+ */
+export async function androidCheck(adb, dev, log) {
+  await adb.connect();
+  const p = await adb.props();
+  log(`  ${p['ro.product.manufacturer'] || ''} ${p['ro.product.model'] || '?'} (${p['ro.product.board'] || '?'}), Android serial ${p['ro.serialno'] || '-'}`);
+  const android = { os_version: p['ro.build.version.release'] || null, patch: p['ro.build.version.security_patch'] || null,
+                    fingerprint: p['ro.system.build.fingerprint'] || null };
+  log(`  ${androidLabel(android)}, slot ${(p['ro.boot.slot_suffix'] || '?').replace(/^_/, '')}, verified boot ${p['ro.boot.verifiedbootstate'] || '?'}`);
+  if (p['ro.boot.flash.locked'] === '1') {
+    log('WARNING: the bootloader is locked. FreeABL needs it unlocked, and unlocking erases all data: back up your files first, then follow your vendor\'s unlock procedure.');
+  }
+  const av = androidValidated(dev, android);
+  if (!av.listed) log(`note: no validated Android versions recorded for the ${dev.name}`);
+  else if (!av.ok) log(`WARNING: FreeABL was not run on this Android version on the ${dev.name} yet: flashing will need tester mode`);
+  else if (!av.exact) log('note: FreeABL was run on this Android version and patch, not on this exact build');
+  else log('FreeABL was run on this exact Android build.');
+  return { props: p, android };
+}
+
 export async function check(fb, table, log) {
   await fb.connect();
   const v = {};
@@ -374,7 +398,10 @@ export async function loadBackup(tar, dev, state) {
   const dir = jsonName.slice(0, -'backup.json'.length);
   const info = JSON.parse(new TextDecoder().decode(await files[jsonName]()));
   if (info.device !== dev.id || info.soc !== dev.soc) stop(`the backup was made for '${info.device}' (${info.soc}), not '${dev.id}' (${dev.soc})`);
-  if (state && info.serial !== state.serial) stop(`the backup is for device ${info.serial}, the connected device is ${state.serial}`);
+  if (state && info.serial !== state.serial) {
+    stop(`the backup is for device ${info.serial}, the connected device is ${state.serial}. A vendor update can change the serial `
+         + '(seen on the AYANEO Pocket S): if this is the same device, make a new backup on the Android build it runs now');
+  }
   if (state && info.slot !== state.slot) stop('the active slot changed since the backup (an Android update?): make a new backup');
   const parts = {};
   for (const s of SLOTS) {
