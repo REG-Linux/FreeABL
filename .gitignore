@@ -11,3 +11,4 @@
 /test/qemu-ll/*.vars
 /test/qemu-ll/startup.nsh
 /test/boot_dispatch_test
+__pycache__/
