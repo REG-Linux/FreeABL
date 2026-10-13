@@ -22,6 +22,8 @@ jobs:
           /tmp/bdt | tail -1
       - name: Flash tool test (simulated device)
         run: python3 test/flash/test-flash.py
+      - name: FreeABL's Android build variables agree with the flash tool (host build)
+        run: bash test/androidvars/run.sh
       - name: Build all SoCs
         run: |
           clang-18 --version | head -1; ld.lld-15 --version

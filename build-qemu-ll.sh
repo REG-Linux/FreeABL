@@ -28,6 +28,7 @@ export CLANG35_BIN="$HERE/toolbin/" CLANG35_AARCH64_PREFIX=aarch64-linux-gnu- CL
 export CLANG_EXTRA_DLINK_FLAGS="-Wl,--no-relax -Wl,--apply-dynamic-relocs"
 export FUSE_LD="$HERE/toolbin/ld.lld" EXTRA_GCC_ARG= WRAPPER= MAKEPATH= BOARD_BOOTLOADER_PRODUCT_NAME="$SOC"
 . ./edksetup.sh BaseTools >/dev/null
+mkdir -p "$HERE/logs"   # build.py hangs, instead of failing, when it cannot open its -j log
 export PATH="$HERE/edk2/obj/ABL_OBJ/Build/Source/C/bin:$PATH"
 build -p QcomModulePkg/QcomModulePkg.dsc -a AARCH64 -t CLANG35 -b DEBUG \
   -m "${2:-QcomModulePkg/Application/LinuxLoader/LinuxLoader.inf}" \

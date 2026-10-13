@@ -4,7 +4,8 @@
 #  1. host unit test of the routing logic (BootDispatch.c, all input combinations)
 #  2. QEMU: BootLib ESP chain -> GRUB (EspHarness)
 #  3. QEMU: the real LinuxLoader through QemuQcomShim on Odin-like disks
-#  7. tools/freeabl-flash.py against a simulated device
+#  7. tools/freeabl-flash.py against a simulated device; FreeABL's Android build
+#     fastboot variables (host build) against the tool
 #  8. web flasher steps (Node) and page (headless Chrome) against a simulated device
 HERE="$(cd "$(dirname "$0")" && pwd)"; E="$HERE/../edk2/QcomModulePkg"; rc=0
 echo "== 1. routing logic (host)"
@@ -25,6 +26,7 @@ echo "== 6. LinuxLoader SM8550 (QEMU, AYANEO Pocket S flat build)"
   && "$HERE/qemu-ll/test-pockets.sh" || rc=1
 echo "== 7. flash tool (simulated device)"
 python3 "$HERE/flash/test-flash.py" | tail -1; [ "${PIPESTATUS[0]}" = 0 ] || rc=1
+"$HERE/androidvars/run.sh" | tail -4; [ "${PIPESTATUS[0]}" = 0 ] || rc=1
 echo "== 8. web flasher (simulated device)"
 node --test "$HERE/../web/test/core.test.mjs" "$HERE/../web/test/usb.test.mjs" 2>&1 | grep -E '^# (pass|fail)' ; [ "${PIPESTATUS[0]}" = 0 ] || rc=1
 if [ -d "$HERE/../web/node_modules/puppeteer-core" ]; then node "$HERE/../web/test/ui-smoke.mjs" | tail -1 || rc=1
