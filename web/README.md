@@ -4,12 +4,16 @@ A static page that backs up, installs and removes FreeABL over WebUSB, with the
 same checks as `tools/freeabl-flash.py` (see [FLASHING.md](../FLASHING.md)).
 Chrome, Edge or another Chromium browser on a computer.
 
-**Status: not yet run on a device.** Every step is tested against a simulated
-device, and the real USB code (fastboot.js, qdl.js, `src/edl-qdl.js`) runs
-against a fake phone that speaks fastboot, Sahara 2/3 and Firehose byte by byte
-(`test/fakeusb.mjs`, modelled on bkerler/edl logs of our devices). That checks
-our side of the protocol, not how a real boot ROM or loader behaves. Run
-`spike.html` (read-only) on a device first.
+**Status: run on an AYN Odin 2 Portal (SM8550), not yet in a browser.** The
+page's steps and USB code (`core.js`, `usb.js`, fastboot.js, qdl.js,
+`src/edl-qdl.js`) did a fastboot check, an EDL backup, a restore to stock and
+an install, each read back and verified, then the device booted Android and
+FreeABL's fastboot (2026-10-13). They ran in Node with the `usb` package as
+`navigator.usb`, the same WebUSB API without the browser. Every step is also
+tested against a simulated device, and the USB code against a fake phone that
+speaks fastboot, Sahara 2/3 and Firehose byte by byte (`test/fakeusb.mjs`,
+modelled on bkerler/edl logs and the Portal's loader). On other devices, run
+`spike.html` (read-only) first.
 
 | File | |
 |---|---|
