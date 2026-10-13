@@ -20,8 +20,40 @@ def signed_elf(version, tag):
     return bytes(d)
 
 
+def vbmeta_image(props, size=64 * 1024):
+    """An AVB vbmeta image (unsigned) holding property descriptors."""
+    descs = b''
+    for k, v in props.items():
+        kb, vb = k.encode(), v.encode()
+        n = (16 + len(kb) + 1 + len(vb) + 1 + 7) // 8 * 8
+        descs += struct.pack('>QQQQ', 0, n, len(kb), len(vb)) + (kb + b'\0' + vb + b'\0').ljust(n - 16, b'\0')
+    h = bytearray(256)
+    h[:4] = b'AVB0'
+    struct.pack_into('>Q', h, 20, len(descs))
+    struct.pack_into('>QQ', h, 96, 0, len(descs))
+    return (bytes(h) + descs).ljust(size, b'\0')
+
+
+def build(os_v='13', patch='2024-05-05', gki=False):
+    """vbmeta and vbmeta_system of an Android build, as in web/sim.js."""
+    b = 'init_boot' if gki else 'boot'
+    return (vbmeta_image({f'com.android.build.{b}.os_version': os_v, f'com.android.build.{b}.security_patch': patch}),
+            vbmeta_image({'com.android.build.system.os_version': os_v, 'com.android.build.system.security_patch': patch,
+                          'com.android.build.system.fingerprint': f'AYN/kalama/kalama:{os_v}/TKQ1/eng:user/release-keys'}))
+
+
+def boot_header(os_v='13', patch='2024-05'):
+    a, b, c = (list(map(int, os_v.split('.'))) + [0, 0])[:3]
+    y, m = map(int, patch.split('-')[:2])
+    h = bytearray(4096)
+    h[:8] = b'ANDROID!'
+    struct.pack_into('<I', h, 16, ((((a << 14) | (b << 7) | c) << 11) | ((y - 2000) << 4) | m))
+    struct.pack_into('<I', h, 40, 4)
+    return bytes(h)
+
+
 class Dev:
-    def __init__(self, stock_a, stock_b, **v):
+    def __init__(self, stock_a, stock_b, android=({}, {}), **v):
         self.dir = tempfile.mkdtemp(prefix='fakedev-')
         self.bin = os.path.join(self.dir, 'bin')
         os.mkdir(self.bin)
@@ -32,9 +64,25 @@ class Dev:
                          msm=0x2520e1)
         self.vars.update(v)
         self.vars = {k: x for k, x in self.vars.items() if x is not None}
-        json.dump(self.vars, open(os.path.join(self.dir, 'vars.json'), 'w'))
+        self.vars['parts'] = ['abl_a', 'abl_b', 'xbl_a', 'xbl_b']
         for p, data in (('abl_a', stock_a), ('abl_b', stock_b)):
             open(os.path.join(self.dir, p), 'wb').write(data.ljust(SIZE, b'\0'))
+        for p in ('xbl_a', 'xbl_b'):
+            open(os.path.join(self.dir, p), 'wb').write(p.encode() * 1000)
+        for slot, b in zip('ab', android):
+            self.update(slot, b)
+
+    def update(self, slot, b):
+        """What an Android update writes to a slot, as far as the checks see it; None: no vbmeta (older Android)."""
+        parts = [p for p in self.vars['parts'] if not p.endswith(f'_{slot}') or p.startswith(('abl_', 'xbl_'))]
+        if b is not None:
+            vb, sysvb = build(**b)
+            for name, data in ((f'vbmeta_{slot}', vb), (f'vbmeta_system_{slot}', sysvb),
+                               (f'boot_{slot}', boot_header(b.get('os_v', '13'), b.get('patch', '2024-05')))):
+                open(os.path.join(self.dir, name), 'wb').write(data)
+                parts.append(name)
+        self.vars['parts'] = parts
+        json.dump(self.vars, open(os.path.join(self.dir, 'vars.json'), 'w'))
         self.backups = os.path.join(self.dir, 'backups')
         self.loader = os.path.join(self.dir, 'loader.melf')
         open(self.loader, 'wb').write(b'loader')
@@ -74,7 +122,8 @@ L = lambda d: ('-l', d.loader)
 d = Dev(STOCK7, EMPTY)
 rc, out = d.run('check'); check('check: unlocked device accepted', rc == 0, out)
 rc, out = d.run('backup', '-d', 'pockets', *L(d)); check('backup: ok, abl_b empty', rc == 0 and 'EMPTY' in out, out)
-bk = os.path.join(d.backups, 'TEST1234')
+bk = os.path.join(d.backups, 'TEST1234', 'android13-2024-05-05-' + hashlib.sha256(d.part('vbmeta_a')).hexdigest()[:8])
+check('backup: in the folder of its Android build', os.path.isfile(os.path.join(bk, 'backup.json')), str(os.listdir(os.path.dirname(bk))))
 check('backup: stock abl_a saved', open(os.path.join(bk, 'abl_a.stock.img'), 'rb').read() == d.part('abl_a'))
 img = d.image(FREE7)
 rc, out = d.run('flash', '-d', 'pockets', *L(d), '-i', img, stdin='nope\n')
@@ -209,6 +258,82 @@ rc, out = d.run('flash', '-d', 'pocketmax', '--untested', *L(d), '-i', img, stdi
 check('earlier-build device ok with --untested', rc == 0, out)
 shutil.rmtree(d.dir)
 
+# 13. Android builds: backups per build, restore only under the build of the backup
+def bjson(d):
+    found = []
+    top = os.path.join(d.backups, 'TEST1234')
+    for x in os.listdir(top):
+        f = os.path.join(top, x, 'backup.json')
+        if os.path.isfile(f):
+            found.append((x, json.load(open(f))))
+    return dict(found)
+
+d = Dev(STOCK7, STOCK7)
+d.run('check')
+rc, out = d.run('backup', '-d', 'pockets', *L(d))
+check('backup: Android build shown', rc == 0 and 'slot a: Android 13, security patch 2024-05-05' in out, out)
+(name, info), = bjson(d).items()
+check('backup: build recorded', info['android']['patch'] == '2024-05-05' and info['android']['vbmeta_sha256'] == hashlib.sha256(d.part('vbmeta_a')).hexdigest(), str(info))
+img = d.image(FREE7)
+d.run('flash', '-d', 'pockets', *L(d), '-i', img, stdin='FLASH-ABL_A\n')
+d.update('a', dict(patch='2025-02-05'))        # two Android updates later, back on slot a
+rc, out = d.run('restore', '-d', 'pockets', *L(d), stdin='RESTORE-ABL_A\n')
+check('restore over EDL: backup from another build refused', rc != 0 and 'backups are from other builds' in out
+      and d.part('abl_a')[:len(FREE7)] == FREE7, out)
+open(os.path.join(d.dir, 'abl_a'), 'r+b').write(STOCK7)   # the update brought its own stock ABL
+rc, out = d.run('backup', '-d', 'pockets', *L(d))
+check('backup on the new build: a second folder', rc == 0 and len(bjson(d)) == 2, out)
+open(os.path.join(d.dir, 'abl_a'), 'r+b').write(FREE7)
+rc, out = d.run('restore', '-d', 'pockets', *L(d), stdin='RESTORE-ABL_A\n')
+check('restore over EDL: the backup of this build chosen', rc == 0 and 'same Android build (Android 13, security patch 2025-02-05)' in out
+      and d.part('abl_a')[:len(STOCK7)] == STOCK7, out)
+# over fastboot: FreeABL that reports the build is checked, one that does not is warned about
+rc, out = d.run('restore', '-d', 'pockets', '--via', 'fastboot', stdin='RESTORE-ABL_A\n')
+check('restore over fastboot without the build: warned', rc == 0 and 'cannot tell the Android build' in out, out)
+new = [i for i in bjson(d).values() if i['android']['patch'] == '2025-02-05'][0]['android']
+v = json.load(open(os.path.join(d.dir, 'vars.json')))
+v.update({'android-os-version': '13', 'android-security-patch': '2025-02-05', 'vbmeta-sha256': new['vbmeta_sha256']})
+json.dump(v, open(os.path.join(d.dir, 'vars.json'), 'w'))
+rc, out = d.run('restore', '-d', 'pockets', '--via', 'fastboot', stdin='RESTORE-ABL_A\n')
+check('restore over fastboot with the build: checked', rc == 0 and 'same Android build' in out and 'Note' not in out, out)
+v['vbmeta-sha256'] = 'f' * 64
+json.dump(v, open(os.path.join(d.dir, 'vars.json'), 'w'))
+rc, out = d.run('restore', '-d', 'pockets', '--via', 'fastboot', stdin='RESTORE-ABL_A\n')
+check('restore over fastboot, other build: refused', rc != 0 and 'other builds' in out, out)
+shutil.rmtree(d.dir)
+
+# boot side from init_boot properties (GKI), or from the boot header when vbmeta has none
+d = Dev(STOCK7, STOCK7, android=(dict(gki=True, patch='2023-06-05'), {}))
+d.run('check'); d.run('backup', '-d', 'pockets', *L(d))
+check('build: init_boot properties', list(bjson(d).values())[0]['android']['patch'] == '2023-06-05')
+shutil.rmtree(d.dir)
+d = Dev(STOCK7, STOCK7)
+open(os.path.join(d.dir, 'vbmeta_a'), 'wb').write(vbmeta_image({}))
+d.run('check'); rc, out = d.run('backup', '-d', 'pockets', *L(d))
+a = list(bjson(d).values())[0]['android']
+check('build: boot header when vbmeta has no version', a['os_version'] == '13' and a['patch'] == '2024-05', str(a))
+check('build: header read with edl rs on the right sector', 'edl rs ' in open(os.path.join(d.dir, 'calls.log')).read())
+shutil.rmtree(d.dir)
+d = Dev(STOCK7, STOCK7, android=(None, None))
+d.run('check'); rc, out = d.run('backup', '-d', 'pockets', *L(d))
+check('build: none on an older Android, backup still made', rc == 0 and 'android-unknown' in bjson(d) and 'Android version not known' in out, out)
+shutil.rmtree(d.dir)
+
+# 14. firmware dump: read only, big partitions left out
+d = Dev(STOCK7, STOCK7)
+d.run('check')
+rc, out = d.run('dump', '-d', 'pockets', *L(d))
+fw = [os.path.join(d.backups, 'TEST1234', x, 'firmware') for x in os.listdir(os.path.join(d.backups, 'TEST1234')) if x.startswith('android')][0]
+fj = json.load(open(os.path.join(fw, 'firmware.json'))) if os.path.isfile(os.path.join(fw, 'firmware.json')) else {}
+check('dump: every small partition of both slots', rc == 0 and sorted(fj.get('firmware', {})) ==
+      sorted(['abl_a', 'abl_b', 'xbl_a', 'xbl_b', 'vbmeta_a', 'vbmeta_b', 'vbmeta_system_a', 'vbmeta_system_b', 'boot_a', 'boot_b']), out)
+check('dump: userdata left out', 'Left out: userdata (65536 MiB)' in out, out)
+check('dump: contents and sums', open(os.path.join(fw, 'xbl_b.img'), 'rb').read() == d.part('xbl_b')
+      and fj['firmware']['xbl_b']['sha256'] == hashlib.sha256(d.part('xbl_b')).hexdigest())
+calls = open(os.path.join(d.dir, 'calls.log')).read()
+check('dump: nothing written', not any(l.startswith(('edl w', 'fastboot flash')) for l in calls.splitlines()), calls)
+shutil.rmtree(d.dir)
+
 # 12. devices.json (used by web/) matches the table embedded in the tool
 import importlib.util
 spec = importlib.util.spec_from_file_location('ff', TOOL)
@@ -218,6 +343,19 @@ emb = {k: {kk: (('0x%x' % vv) if kk == 'msm_id' and vv is not None else vv) for 
        for k, d in ff.DEVICES.items()}
 check('devices.json matches the tool', {k: {kk: v[kk] for kk in emb.get(k, {})} for k, v in dj['devices'].items()} == emb and dj['soc_mbn'] == ff.SOC_MBN
       and dj['min_battery_mv'] == ff.MIN_MV)
+
+# Android builds FreeABL was validated on
+dv = dict(ff.DEVICES['pockets'], android=[dict(os_version='13', patch='2024-05-05')])
+check('validated builds: same month passes, another needs --untested',
+      ff.android_validated(dv, dict(os_version='13', patch='2024-05-01')) == (True, True)
+      and ff.android_validated(dv, dict(os_version='14', patch='2025-01-05')) == (True, False)
+      and ff.android_validated(dv, None) == (True, False)
+      and ff.android_validated(ff.DEVICES['pockets'], None) == (False, False))
+# same parser as the web page, on the same bytes
+pv = build(patch='2024-05-05')[0]
+check('vbmeta properties: Python and web agree', ff.avb_props(pv) == json.loads(subprocess.run(
+    ['node', '-e', 'import("./web/core.js").then(c=>{let b=[];process.stdin.on("data",d=>b.push(d)).on("end",()=>console.log(JSON.stringify(c.avbProps(new Uint8Array(Buffer.concat(b))))))})'],
+    input=pv, capture_output=True, cwd=os.path.join(HERE, '..', '..')).stdout or b'null'))
 
 print(f"\n{'all passed' if not failures else f'{len(failures)} FAILED'}")
 sys.exit(1 if failures else 0)

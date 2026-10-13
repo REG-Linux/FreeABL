@@ -3,8 +3,9 @@
 """Fake `fastboot` and `edl` for test-flash.py: one simulated device in $FAKEDEV.
 
 $FAKEDEV/vars.json  fastboot variables, plus "critical": refuse fastboot flash of abl,
-                    "msm": EDL MSM ID, "corrupt": flip a byte on every EDL write
-$FAKEDEV/<part>     partition contents (1 MiB)
+                    "msm": EDL MSM ID, "corrupt": flip a byte on every EDL write,
+                    "parts": the partitions on LUN 4, in order (userdata on LUN 0 is listed, never read)
+$FAKEDEV/<part>     partition contents
 """
 import json, os, sys
 
@@ -55,11 +56,28 @@ if not os.path.exists(loaded):
     print(f"HWID:              0x{V['msm']:08x}00000000 (MSM_ID:0x{V['msm']:08x},OEM_ID:0x0000,MODEL_ID:0x0000)")
     open(loaded, 'w').close()
 cmd = args[0]
+# layout as the edl tool prints it (offsets in bytes); UFS, 4096-byte sectors
+layout, off = [], 0x10000
+for n in V.get('parts', ['abl_a', 'abl_b']):
+    size = os.path.getsize(part(n))
+    layout.append((n, off, size))
+    off += (size + 4095) // 4096 * 4096       # partitions start on a sector
 if cmd == 'printgpt':
-    print("Lun 4:\nabl_a  Offset 0x00000000, Length 0x00100000\nabl_b  Offset 0x00100000, Length 0x00100000")
+    row = "{:20} Offset 0x{:016x}, Length 0x{:016x}, Flags 0x0000000000000000, UUID x, Type x, Active False"
+    print("\nParsing Lun 0:\n\nGPT Table:\n-------------\n" + row.format('userdata:', 0x6000, 1 << 36))
+    print("\nParsing Lun 4:\n\nGPT Table:\n-------------\n" + '\n'.join(row.format(n + ':', o, l) for n, o, l in layout))
 elif cmd == 'r':
-    open(args[2], 'wb').write(open(part(args[1]), 'rb').read())
-    print(f"Dumped sector 0 with sector count 256 as {args[2]}.")
+    for name, path in zip(args[1].split(','), args[2].split(',')):
+        if not os.path.exists(part(name)):
+            print(f"Error: Couldn't detect partition: {name}")
+            sys.exit(1)
+        open(path, 'wb').write(open(part(name), 'rb').read())
+        print(f"Dumped sector 0 with sector count 256 as {path}.")
+elif cmd == 'rs':
+    start, count, path = int(args[1]) * 4096, int(args[2]) * 4096, args[3]
+    n, o, l = next(x for x in layout if x[1] <= start < x[1] + x[2])
+    open(path, 'wb').write(open(part(n), 'rb').read()[start - o:start - o + count].ljust(count, b'\0'))
+    print(f"Dumped sector {args[1]} with sector count {args[2]} as {path}.")
 elif cmd == 'w':
     write(args[1], args[2], V.get('corrupt'))
     print(f"Wrote {args[2]} to sector 0.")

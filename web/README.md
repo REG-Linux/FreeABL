@@ -20,7 +20,7 @@ modelled on bkerler/edl logs and the Portal's loader). On other devices, run
 | `index.html`, `app.js`, `style.css` | the page |
 | `core.js` | the checks and steps, independent of USB (shared rules with the CLI) |
 | `usb.js` | WebUSB drivers: fastboot through fastboot.js, EDL through qdl.js |
-| `src/edl-qdl.js` | EDL driver on qdl.js: Sahara 3 hello, MSM ID, UFS/eMMC, partition read/write only |
+| `src/edl-qdl.js` | EDL driver on qdl.js: Sahara 3 hello, MSM ID, UFS/eMMC, partition list, read and write only |
 | `sim.js` | simulated device (`index.html?sim=1`, tests) |
 | `test/fakeusb.mjs` | fake phone behind `navigator.usb` for the USB tests |
 | `spike.html` | read-only probe: fastboot variables, EDL connection, `abl_a`/`abl_b` read |
@@ -54,4 +54,15 @@ web/build-vendor.sh && git diff --exit-code web/vendor # bundles up to date (nee
   SDM845 UFS devices; `src/edl-qdl.js` adds what our devices need, after bkerler/edl.
 
 The page never calls qdl.js's GPT, erase or slot functions: `src/edl-qdl.js` only
-exposes partition read and write by name, and reset.
+exposes the partition list, partition read and write by name, and reset.
+
+## Android builds and the firmware file
+
+The backup records the Android build of the active slot (`core.js`,
+`androidBuild()`: vbmeta properties, else the boot header; the sha256 of
+`vbmeta_<slot>` tells two builds apart) and its file name carries it. Back to
+stock refuses a backup from another build, and `devices.json` can list the
+builds FreeABL was validated on per device (`android`). "Also save the whole
+firmware" streams every partition up to 128 MiB of both slots, except
+`userdata` and `super`, into one tar (`showSaveFilePicker` where the browser
+has it); Back to stock and Update accept it like a backup.

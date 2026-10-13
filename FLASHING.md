@@ -101,10 +101,23 @@ instead of `./tools/freeabl-flash.py ...`.
    ./tools/freeabl-flash.py backup -d pockets --loader xbl_s_devprg_ns.melf
    ```
 
-   Both `abl_a` and `abl_b` are read twice and compared. They are saved in
-   `~/FreeABL-backups/<serial>/` (change with `--backup-dir`). An `abl_b` that
-   is all zeros is normal on some devices. **Copy that folder somewhere safe:** it
-   is the only way back to your stock bootloader.
+   Both `abl_a` and `abl_b` are read twice and compared. The tool also reads which
+   Android build the device runs (version and security patch, from `vbmeta`) and
+   saves the backup in a folder of that build:
+   `~/FreeABL-backups/<serial>/android<version>-<patch>-<id>/` (change the top
+   folder with `--backup-dir`). An `abl_b` that is all zeros is normal on some
+   devices. **Copy that folder somewhere safe:** it is the way back to your stock
+   bootloader on this Android build.
+
+   Recommended, read only: save the whole firmware too, every partition of both
+   slots up to 128 MiB (bootloaders, `boot`, `vbmeta`…; not your data, not `super`):
+
+   ```sh
+   ./tools/freeabl-flash.py dump -d pockets --loader xbl_s_devprg_ns.melf
+   ```
+
+   It goes to `firmware/` in the same folder, a few hundred MB. It holds this
+   device's own data: keep it private.
 
 3. **Flash.** Still in EDL:
 
@@ -141,6 +154,29 @@ Stock bootloaders often refuse to write `abl` over fastboot ("Critical
 Partitions"). `fastboot flashing unlock_critical` lifts that but erases user
 data again. Use the EDL steps instead.
 
+## Android updates
+
+An Android update installs the other slot, with a new stock bootloader, and
+switches to it. FreeABL stays on the old slot, unused: Android starts as stock.
+To get FreeABL back, run the steps again (`check`, `backup`, `flash`). The new
+backup goes to a new folder, for the new Android build; keep the older ones.
+
+If an update refuses to install, put the stock bootloader back first (below),
+update, then install FreeABL again.
+
+The flashers check the Android build:
+
+- **Going back to stock** writes only a backup made on the Android build the
+  device runs now. A stock bootloader from another build may not start it.
+  Over EDL the tool reads the build from the device; over fastboot, FreeABL
+  reports it (`fastboot getvar android-security-patch`; earlier FreeABL
+  builds do not, and the tool then warns and uses your latest backup).
+- **Flashing** on an Android build FreeABL was not run on yet needs
+  `--untested` (tester mode on the web page), once builds are recorded for the
+  device in `devices.json`. If Android then does not start, FreeABL's menu and
+  fastboot still do: go back to stock over fastboot.
+- **Secure boot:** both flashers stop if `fastboot getvar secure` is not `no`.
+
 ## Going back to stock
 
 From FreeABL's fastboot, or over EDL if the device no longer reaches fastboot:
@@ -151,8 +187,10 @@ From FreeABL's fastboot, or over EDL if the device no longer reaches fastboot:
 ```
 
 If you need EDL because the device does not boot, `check` cannot run. The state
-from the first `check` is still in the backup folder (`current-device.json`), so
-`restore` works as long as the device and the active slot are the same.
+from the last `check` is still in the backup folder (`current-device.json`), so
+`restore` works as long as the device and the active slot are the same. The tool
+picks the backup folder of the Android build it reads from the device, and stops
+if there is none: then use your vendor's firmware package.
 
 ## Devices not in the list (testers)
 
