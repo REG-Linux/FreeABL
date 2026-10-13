@@ -59,8 +59,12 @@ into `~/FreeABL-backups/`, or pack a tool backup for the web page with
   - On Windows, EDL needs the WinUSB driver: in EDL mode the device shows up as
     `QUSB__BULK` or `Qualcomm HS-USB QDLoader 9008`; install WinUSB on it with
     [Zadig](https://zadig.akeo.ie/).
-- **The EDL loader for your device** (table above). The tool does not ship
-  loaders: they are vendor files. Take them from your device's firmware package.
+- **The EDL loader for your device** (table above). These are vendor files; for
+  the listed devices both flashers fetch the one validated on the device from
+  [FreeABL-loaders](https://github.com/REG-Linux/FreeABL-loaders) when you give
+  none, and check its sha256. Your own copy, from the device's firmware package,
+  works too (`--loader`): it is checked against the same hash, with a warning if
+  it differs.
 - **The FreeABL image for your SoC**, from the
   [release page](https://github.com/REG-Linux/FreeABL/releases), with its
   `.sha256` file (or `SHA256SUMS`) in the same folder.

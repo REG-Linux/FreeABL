@@ -52,9 +52,23 @@ function simDevice() {
 }
 const fastbootDriver = () => (SIM ? simDevice().fastboot : usb.fastbootDriver(log));
 const adbDriver = () => (SIM ? simDevice().adb : usb.adbDriver(log));
+// the loader chosen, checked; else the one validated on the device, fetched and checked
+async function loaderBytes(dev) {
+  const chosen = await readFile($('loader'));
+  if (chosen) { await core.checkLoader(dev, chosen, false, log); return chosen; }
+  if (SIM) return new Uint8Array(1);
+  if (!dev.loaderUrl) return null;
+  log(`Fetching the EDL loader: ${dev.loaderUrl}`);
+  const r = await fetch(dev.loaderUrl).catch(() => null);
+  if (!r?.ok) throw new core.Stop(`cannot fetch the EDL loader: choose it in section 1 (${dev.loaderHint})`);
+  const bytes = new Uint8Array(await r.arrayBuffer());
+  await core.checkLoader(dev, bytes, true, log);
+  return bytes;
+}
+
 async function edlSession(dev) {
   if (edl) return edl;
-  const loader = (await readFile($('loader'))) || (SIM ? new Uint8Array(1) : null);
+  const loader = await loaderBytes(dev);
   const driver = SIM ? simDevice().edl : usb.edlDriver(log);
   log('Connecting to the device in EDL...');
   const msmId = await core.edlConnect(driver, dev, loader, $('untested').checked, log);
@@ -121,7 +135,7 @@ async function doCheck() {
   fb = fastbootDriver();
   state = await core.check(fb, table, log);
   log(`OK: device ${state.serial}, active slot ${state.slot}. Next: boot it to EDL and back up.`);
-  if (!$('loader').files[0] && !SIM) {
+  if (!$('loader').files[0] && !SIM && !dev.loaderUrl) {
     log(`The backup needs the EDL loader: choose it now in section 1 (${dev.loaderHint || "the firehose loader from your device's firmware package"}).`);
   }
 }
@@ -247,7 +261,9 @@ function refresh() {
     const dev = selection(false);
     note = { current: 'Validated with this build.', earlier: 'Validated with an earlier build only: needs tester mode.',
              none: 'Never run on this device: needs tester mode.' }[dev.validated];
-    $('loader-note').textContent = dev.loaderHint ? `Loader: ${dev.loaderHint}.` : 'Loader: the firehose loader from your device\'s firmware package.';
+    $('loader-note').textContent = dev.loaderUrl
+      ? `Loader: leave empty to fetch the one validated on this device (${dev.loaderHint}), or choose your own.`
+      : dev.loaderHint ? `Loader: ${dev.loaderHint}.` : 'Loader: the firehose loader from your device\'s firmware package.';
   } catch (e) { note = e.message; }
   $('device-note').textContent = note;
   $('btn-backup').disabled = !state;

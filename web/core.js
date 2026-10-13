@@ -243,7 +243,7 @@ export function resolveDevice(table, { device, soc, memory, untested, forWrite =
   if (soc && soc !== d.soc) stop(`the ${d.name} is ${d.soc}: for another SoC choose "Other device"`);
   return { id: device, name: d.name, soc: d.soc, mbn: d.mbn, validated: d.validated, android: d.android || [],
            memory: memory || d.memory || 'ufs', msmId: d.msm_id === null ? null : parseInt(d.msm_id, 16),
-           loaderHint: d.loader_hint_web || d.loader_hint };
+           loaderHint: d.loader_hint_web || d.loader_hint, loaderUrl: d.loader_url || null, loaderSha256: d.loader_sha256 || null };
 }
 
 export const imageName = (soc) => `abl_signed-${soc.toUpperCase()}-ESP-r34.elf`;
@@ -316,6 +316,15 @@ export async function check(fb, table, log) {
            chipSerial: v['chip-serial'] || null, time: new Date().toISOString() };
 }
 
+/** The EDL loader against the one validated on the device: a fetched one must match. */
+export async function checkLoader(dev, bytes, fetched, log) {
+  if (!dev.loaderSha256) return;
+  const h = await sha256hex(bytes);
+  if (h === dev.loaderSha256) { log(`EDL loader recognised (sha256 ${h.slice(0, 16)}...)`); return; }
+  if (fetched) stop('the fetched EDL loader does not have the expected sha256: not using it');
+  log(`WARNING: this EDL loader is not the one validated on the ${dev.name} (sha256 ${h.slice(0, 16)}..., expected ${dev.loaderSha256.slice(0, 16)}...)`);
+}
+
 export async function edlConnect(edl, dev, loader, untested, log) {
   if (!loader) stop(`the ${dev.name} needs an EDL loader file${dev.loaderHint ? ` (${dev.loaderHint})` : ''}`);
   const { msmId } = await edl.connect(loader, dev.memory);
@@ -355,7 +364,8 @@ export async function backup(edl, dev, state, msmId, log, { freeablImages = [] }
   sameDevice({ edl, state });
   const info = { device: dev.id, soc: dev.soc, product: state.product || null, variant: state.variant || null,
                  serial: state.serial, slot: state.slot, msm_id: msmId === null ? null : `0x${msmId.toString(16)}`,
-                 chip_serial: edl.chipSerial || state.chipSerial || null, time: new Date().toISOString(), partitions: {} };
+                 chip_serial: edl.chipSerial || state.chipSerial || null, hwid: edl.chipInfo?.hwid || null,
+                 pk_hash: edl.chipInfo?.pkHash || null, time: new Date().toISOString(), partitions: {} };
   if (!info.chip_serial) log('note: chip serial not read (EDL loader already running): this backup is not tied to the chip');
   const files = [];
   for (const s of SLOTS) {
@@ -386,7 +396,8 @@ export async function backup(edl, dev, state, msmId, log, { freeablImages = [] }
   files.push({ name: `${state.serial}/SHA256SUMS`, data: enc.encode(SLOTS.map((s) => `${info.partitions[`abl_${s}`].sha256}  abl_${s}.stock.img\n`).join('')) });
   const tar = makeTar(files);
   const report = dev.validated === 'current' ? null :
-    `soc ${dev.soc}, MSM ID ${info.msm_id || 'not seen'}, stock signature v${act}, fastboot product ${state.product || '-'}, variant ${state.variant || '-'}, storage ${dev.memory}`;
+    `soc ${dev.soc}, MSM ID ${info.msm_id || 'not seen'}, HWID ${info.hwid || '-'}, PK hash ${info.pk_hash || '-'}, stock signature v${act}, `
+    + `fastboot product ${state.product || '-'}, variant ${state.variant || '-'}, storage ${dev.memory}, ${androidLabel(info.android)}`;
   return { tar, tarName: `freeabl-backup-${state.serial}${buildTag(info.android)}.tar`, info, report };
 }
 

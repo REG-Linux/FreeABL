@@ -2,5 +2,5 @@ fastboot.min.mjs: kdrag0n/fastboot.js 5b613332aa9d66cca5bebb49f147cd084a76c464
 edl-qdl.mjs: web/src/edl-qdl.js + commaai/qdl.js d1e0683d3f66c6cb49b8ba07b03887b99c12dae6 (bun.lock)
 adb.mjs: web/src/adb-web.js + @yume-chan/adb 2.6.4, adb-daemon-webusb 2.3.2, adb-credential-web 2.1.0 (web/src/adb/package-lock.json)
 bd8283520de10c4cb39139f2f98297a420b39e456c3241db2c7322a82bd2a6db  fastboot.min.mjs
-cbe52d1840b952bc491e0ff3020afe8b794f85335e7b360f6a181882b607b963  edl-qdl.mjs
+98b4208f2fc3a50d4d08fcd4d0c3117edae79a325285615171bba4170e2c3809  edl-qdl.mjs
 5a6aaf4890aca2d9e0a61183c9a8ea275f6acc72d590c01e51b4dd4cf7e58f88  adb.mjs

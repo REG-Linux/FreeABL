@@ -33,6 +33,9 @@ ROOT = os.path.dirname(HERE)
 # msm_id: Sahara MSM ID seen on the device (None = not recorded, not checked).
 # android: Android builds (boot side) FreeABL was run on; another one needs
 # --untested. Empty: none recorded yet, not checked.
+# loader_url / loader_sha256: where the EDL loader is fetched when --loader is not
+# given (REG-Linux/FreeABL-loaders, pinned commit), and the hash loaders are checked against.
+LOADERS = 'https://raw.githubusercontent.com/REG-Linux/FreeABL-loaders/%s/' % '233f143c9221b071bc1adb8e6484b23a1cbc4a20'
 DEVICES = {
     'odin': dict(name='AYN Odin', soc='sdm845', mbn=5, validated='current', android=[],
                  memory='ufs', msm_id=0x08b0e1, loader=None,
@@ -41,18 +44,26 @@ DEVICES = {
                         android=[dict(os_version='13', patch='2024-01-01',
                                       fingerprint='qti/qssi/qssi:13/TKQ1.231222.001/Odin2Portal01172242:user/release-keys')],
                         memory='ufs', msm_id=0x2520e1, loader='xbl_s_devprg_ns.melf',
+                        loader_url=LOADERS + 'sm8550/ayaneo-pocket-s/xbl_s_devprg_ns.melf',
+                        loader_sha256='b15f7a65a05f510dd5aa077d13962a381622661863a6b8ddb4b5169fac4a4b2b',
                         loader_hint='xbl_s_devprg_ns.melf from the AYANEO Pocket S firmware '
                                     'package (works on this device)'),
     'pockets': dict(name='AYANEO Pocket S', soc='sm8550', mbn=7, validated='current',
                     android=[dict(os_version='13', patch='2023-06-05',
                                   fingerprint='qti/qssi/qssi:13/TKQ1.230811.002/2840:user/release-keys')],
                     memory='ufs', msm_id=0x2520e1, loader='xbl_s_devprg_ns.melf',
+                    loader_url=LOADERS + 'sm8550/ayaneo-pocket-s/xbl_s_devprg_ns.melf',
+                    loader_sha256='b15f7a65a05f510dd5aa077d13962a381622661863a6b8ddb4b5169fac4a4b2b',
                     loader_hint='xbl_s_devprg_ns.melf from the AYANEO Pocket S firmware package'),
     'pocketmax': dict(name='Mangmi Pocket Max', soc='sm8250', mbn=6, validated='earlier', android=[],
                       memory='ufs', msm_id=None, loader='prog_firehose_ddr.elf',
+                      loader_url=LOADERS + 'sm8250/mangmi-pocket-max/prog_firehose_ddr.elf',
+                      loader_sha256='0e482b270c0c6d6f1eb20d6586fa4357beb8960330b128a5f374828e4faa59ea',
                       loader_hint='prog_firehose_ddr.elf from the Mangmi firmware package'),
     'airx': dict(name='Mangmi Air X (MQ66)', soc='sm6115', mbn=6, validated='earlier', android=[],
-                 memory=None, msm_id=None, loader=None,
+                 memory=None, msm_id=None, loader='prog_firehose_ddr.elf',
+                 loader_url=LOADERS + 'sm6115/mangmi-air-x/prog_firehose_ddr.elf',
+                 loader_sha256='d2cfbbb0526c61596e29d2a815a62e5b521d68e29a9f2767ebf8e48b05b190b2',
                  loader_hint='the firehose loader from the Mangmi firmware package'),
 }
 # signature format (MBN header version) of the FreeABL image for each SoC
@@ -443,6 +454,33 @@ def get_device(args):
     if args.memory:
         dev['memory'] = args.memory
     return dev
+
+
+def resolve_loader(args, dev):
+    """args.loader: the one given, checked against the device's known loader; else the known one,
+    fetched once into the backup folder and checked."""
+    want = dev.get('loader_sha256')
+    if args.loader:
+        if want and sha256(args.loader) != want:
+            print(f"WARNING: {os.path.basename(args.loader)} is not the loader validated on the {dev['name']} "
+                  f"(sha256 {sha256(args.loader)[:16]}..., expected {want[:16]}...)")
+        return
+    if not dev.get('loader_url') or os.environ.get('FREEABL_NO_FETCH'):
+        return
+    path = os.path.join(backup_root(args), 'loaders', f"{want[:16]}-{dev['loader']}")
+    if not (os.path.isfile(path) and sha256(path) == want):
+        import urllib.request
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        print(f"Fetching the EDL loader: {dev['loader_url']}")
+        try:
+            data = urllib.request.urlopen(dev['loader_url'], timeout=60).read()
+        except OSError as e:
+            die(f"cannot fetch the EDL loader ({e}): give it with --loader PATH ({dev['loader_hint']})")
+        if hashlib.sha256(data).hexdigest() != want:
+            die("the fetched EDL loader does not have the expected sha256: not using it")
+        open(path, 'wb').write(data)
+    print(f"EDL loader: {path} (sha256 OK)")
+    args.loader = path
 
 
 def confirm(phrase, what):
@@ -845,6 +883,8 @@ def main():
         if not os.path.isfile(args.loader):
             die(f"loader not found: {args.loader}")
     globals()['STATE_FILE'] = state_path(args)
+    if args.cmd in ('backup', 'dump', 'reset') or (args.cmd in ('flash', 'restore') and args.via == 'edl'):
+        resolve_loader(args, get_device(args))
     globals()['cmd_' + args.cmd](args)
 
 

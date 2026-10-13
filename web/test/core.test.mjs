@@ -348,3 +348,18 @@ test('Android over USB debugging: what the device is, early warnings, reboots', 
   assert.ok(s2.some((m) => /will need tester mode/.test(m)), s2.join('\n'));
   assert.equal(other.writes.length, 0);
 });
+
+test('EDL loader checked against the one validated on the device', async () => {
+  const dev = core.resolveDevice(table, { device: 'pockets' });
+  assert.match(dev.loaderUrl, /FreeABL-loaders\/[0-9a-f]{40}\/sm8550\//);
+  const said = [];
+  await core.checkLoader(dev, new Uint8Array([1, 2, 3]), false, (m) => said.push(m));
+  assert.match(said[0], /not the one validated/);
+  await assert.rejects(core.checkLoader(dev, new Uint8Array([1, 2, 3]), true, quiet), /fetched EDL loader does not have the expected sha256/);
+  const real = '/home/romain/AyaneoPocketS/images/xbl_s_devprg_ns.melf';
+  if ((await import('node:fs')).existsSync(real)) {
+    const s2 = [];
+    await core.checkLoader(dev, new Uint8Array(readFileSync(real)), true, (m) => s2.push(m));
+    assert.match(s2[0], /recognised/);
+  }
+});

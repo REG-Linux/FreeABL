@@ -247,6 +247,11 @@ class EdlUsb extends FakeUsbDevice {
   exec(what) {
     const ph = this.phone;
     if (what === 0x01) return u32(ph.serial);
+    if (what === 0x03) {   // OEM PK hash: the boot ROM repeats it to fill its buffer
+      const h = Uint8Array.from(ph.pkHash.match(/../g), (x) => parseInt(x, 16));
+      const r = new Uint8Array(h.length * 2); r.set(h); r.set(h, h.length);
+      return r;
+    }
     if (what === 0x02 && ph.sahara < 3 && !ph.chipIdFails) return u32(0x0000_0000, ph.msmId | (ph.hwidTop << 24));
     if (what === 0x0a && ph.sahara >= 3 && !ph.chipIdFails) {
       const r = new Uint8Array(48), d = new DataView(r.buffer);
@@ -370,9 +375,9 @@ export class FakePhone {
   constructor({ sahara = 3, msmId = 0x2520e1, hwidTop = 0, serial = 0x1056a040, chipIdFails = false, commandMode = true,
                 memory = 'ufs', loader = new Uint8Array(9000).map((_, i) => (i * 7) & 0xff), maxPayload = 1048576,
                 configureLogs = true, critical = false, corrupt = false, lag = {}, busy = false, android = { a: {}, b: {} },
-                startupLog = 500, vars = {}, stockA, stockB } = {}) {
+                startupLog = 500, pkHash = '9823c68bf148113f5be92310de6cbc2e84e2aef962eeded50dc51717feebfae3', vars = {}, stockA, stockB } = {}) {
     Object.assign(this, { sahara, msmId, hwidTop, serial, chipIdFails, commandMode, memory, loader, maxPayload,
-                          configureLogs, critical, corrupt, lag, busy, startupLog });
+                          configureLogs, critical, corrupt, lag, busy, startupLog, pkHash });
     this.vars = { serialno: 'FAKE1234', unlocked: 'yes', secure: 'no', product: 'kalama', variant: 'SGP UFS', 'current-slot': 'a',
                   'battery-voltage': '4100', 'has-slot:abl': 'yes', ...vars };
     this.sectorSize = memory === 'emmc' ? 512 : 4096;

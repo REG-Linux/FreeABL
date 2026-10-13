@@ -89,7 +89,7 @@ class Dev:
         open(self.loader, 'wb').write(b'loader')
 
     def run(self, *args, stdin=''):
-        env = dict(os.environ, FAKEDEV=self.dir, PATH=self.bin + os.pathsep + os.environ['PATH'])
+        env = dict(os.environ, FAKEDEV=self.dir, PATH=self.bin + os.pathsep + os.environ['PATH'], FREEABL_NO_FETCH='1')
         env.pop('FASTBOOT', None)
         env.pop('FREEABL_EDL', None)
         r = subprocess.run([sys.executable, TOOL, '--backup-dir', self.backups, *args],
@@ -409,6 +409,26 @@ pv = build(patch='2023-06-05')[0]
 check('vbmeta properties: Python and web agree', ff.avb_props(pv) == json.loads(subprocess.run(
     ['node', '-e', 'import("./web/core.js").then(c=>{let b=[];process.stdin.on("data",d=>b.push(d)).on("end",()=>console.log(JSON.stringify(c.avbProps(new Uint8Array(Buffer.concat(b))))))})'],
     input=pv, capture_output=True, cwd=os.path.join(HERE, '..', '..')).stdout or b'null'))
+
+# the EDL loader: fetched from loader_url when not given, its sha256 checked
+import types
+lt = tempfile.mkdtemp(prefix='loader-')
+open(os.path.join(lt, 'good.elf'), 'wb').write(b'loader bytes')
+good = hashlib.sha256(b'loader bytes').hexdigest()
+dv = dict(ff.DEVICES['pockets'], loader_url='file://' + os.path.join(lt, 'good.elf'), loader_sha256=good)
+a = types.SimpleNamespace(loader=None, backup_dir=os.path.join(lt, 'b'))
+ff.resolve_loader(a, dv)
+check('loader fetched and checked when not given', a.loader and open(a.loader, 'rb').read() == b'loader bytes')
+a = types.SimpleNamespace(loader=None, backup_dir=os.path.join(lt, 'c'))
+try:
+    ff.resolve_loader(a, dict(dv, loader_sha256='0' * 64)); refused = False
+except SystemExit as e:
+    refused = 'expected sha256' in str(e)
+check('fetched loader with another sha256 refused', refused)
+for k, v in ff.DEVICES.items():
+    if v.get('loader_url'):
+        check(f'{k}: loader URL pinned to a commit', '/FreeABL-loaders/' in v['loader_url'] and len(v['loader_sha256']) == 64)
+shutil.rmtree(lt)
 
 print(f"\n{'all passed' if not failures else f'{len(failures)} FAILED'}")
 sys.exit(1 if failures else 0)

@@ -28,6 +28,7 @@ import { toXml } from "qdl/xml";
 
 const EXEC_SERIAL_NUM_READ = 0x01;
 const EXEC_MSM_HW_ID_READ = 0x02;
+const EXEC_OEM_PK_HASH_READ = 0x03;
 const EXEC_READ_CHIP_ID_V3 = 0x0a;
 const CHUNK_BYTES = 1 << 20;   // per read command and per USB transfer
 const SILENCE_S = 30;
@@ -119,20 +120,47 @@ class FreeablSahara extends Sahara {
     return true;
   }
 
+  // MSM, OEM and model IDs, as bkerler/edl reads them; this.oemId and this.modelId
+  // are kept for the HWID that names loaders (bkerler/Loaders: <HWID>_<PK hash>_fhprg.bin)
   async readMsmId() {
     try {
       if ((this.helloVersion || 2) >= 3) {
         const r = await this.cmdExec(EXEC_READ_CHIP_ID_V3);
-        if (r instanceof Uint8Array && r.length >= 40) return new DataView(r.buffer, r.byteOffset).getUint32(36, true);
+        if (r instanceof Uint8Array && r.length >= 44) {
+          const v = new DataView(r.buffer, r.byteOffset);
+          this.oemId = v.getUint16(40, true) || (r.length >= 46 ? v.getUint16(44, true) : 0);
+          this.modelId = v.getUint16(42, true);
+          return v.getUint32(36, true);
+        }
       } else {
         const r = await this.cmdExec(EXEC_MSM_HW_ID_READ);
-        // the MSM ID is bits 32-55 of the 64-bit hardware ID
-        if (r instanceof Uint8Array && r.length >= 8) return new DataView(r.buffer, r.byteOffset).getUint32(4, true) & 0xffffff;
+        // the 64-bit hardware ID: MSM ID in bits 32-55, OEM ID 16-31, model ID 0-15
+        if (r instanceof Uint8Array && r.length >= 8) {
+          const v = new DataView(r.buffer, r.byteOffset);
+          this.oemId = v.getUint32(0, true) >>> 16;
+          this.modelId = v.getUint32(0, true) & 0xffff;
+          return v.getUint32(4, true) & 0xffffff;
+        }
       }
     } catch {
       // not fatal: the SoC is then not checked
     }
     return null;
+  }
+
+  // the hash of the key the chip trusts (OEM_PK_HASH_READ), hex; the boot ROM repeats it to fill its buffer
+  async readPkHash() {
+    try {
+      const r = await this.cmdExec(EXEC_OEM_PK_HASH_READ);
+      if (!(r instanceof Uint8Array) || r.length < 4) return null;
+      let n = r.length;
+      for (let i = 4; i + 4 <= r.length; i++) {
+        if (r[i] === r[0] && r[i + 1] === r[1] && r[i + 2] === r[2] && r[i + 3] === r[3]) { n = i; break; }
+      }
+      return Array.from(r.subarray(0, n), (b) => b.toString(16).padStart(2, "0")).join("");
+    } catch {
+      return null;
+    }
   }
 
   // the chip serial number, 8 hex digits, or null (qdl.js's ignores the packet's byteOffset)
@@ -151,6 +179,7 @@ class FreeablSahara extends Sahara {
     if (await this.enterCommandMode()) {
       this.msmId = await this.readMsmId();
       this.serial = await this.readSerial();
+      this.pkHash = await this.readPkHash();
       await this.cmdModeSwitch(sahara_mode_t.SAHARA_MODE_COMMAND);
       if ((await this.connect()) !== "sahara") throw new Error("EDL: the device did not restart Sahara after the chip ID read: reboot it to EDL and try again");
     }
@@ -272,7 +301,13 @@ export class QdlEdl {
     if (!(await this.firehose.configure())) throw new Error("EDL: the loader did not accept the configuration");
     // kept on the driver: the steps check a backup belongs to this device
     this.chipSerial = sahara.serial ?? null;
-    return { msmId: sahara.msmId ?? null, chipSerial: this.chipSerial };
+    const msm = sahara.msmId ?? null;
+    // the HWID as bkerler/edl writes it, and the key hash: what names a loader in bkerler/Loaders
+    this.chipInfo = msm === null ? null : {
+      hwid: `00${msm.toString(16).padStart(6, "0")}${(sahara.oemId ?? 0).toString(16).padStart(4, "0")}${(sahara.modelId ?? 0).toString(16).padStart(4, "0")}`,
+      pkHash: sahara.pkHash ?? null,
+    };
+    return { msmId: msm, chipSerial: this.chipSerial, chipInfo: this.chipInfo };
   }
 
   // A loader left running by an earlier page may still have replies queued, and

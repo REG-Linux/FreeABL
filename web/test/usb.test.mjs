@@ -42,6 +42,7 @@ test('Sahara 3 (SM8550): chip ID, read, write abl_a only, reset', async () => {
   const { msmId, chipSerial } = await edl.connect(ph.loader, 'ufs');
   assert.equal(msmId, 0x2520e1);
   assert.equal(chipSerial, '1056a040');
+  assert.deepEqual(edl.chipInfo, { hwid: '002520e100510000', pkHash: '9823c68bf148113f5be92310de6cbc2e84e2aef962eeded50dc51717feebfae3' });
   assert.deepEqual([...new Set(ph.helloVersions)], [3], 'answers the hello with the device version');
   const a = await edl.read('abl_a');
   assert.equal(a.length, 1 << 20);
