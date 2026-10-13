@@ -272,13 +272,18 @@ def cmd_devices(args):
 
 def cmd_check(args):
     serial = fb_one_device()
-    v = {k: fb_getvar(k) for k in ('product', 'variant', 'unlocked', 'current-slot',
+    v = {k: fb_getvar(k) for k in ('product', 'variant', 'unlocked', 'secure', 'current-slot',
                                    'battery-voltage', 'battery-soc-ok')}
     for k, x in v.items():
         print(f"  {k:<16} {x if x not in (None, '') else '-'}")
     if v['unlocked'] != 'yes':
         die("the bootloader is locked. FreeABL images carry a test signature and "
             "need an unlocked bootloader (see FLASHING.md)")
+    # a test signature only runs with secure boot off (fuse not blown); an update could turn it on
+    if v['secure'] != 'no':
+        die(f"secure boot is on (secure = {v['secure']}): this device only runs bootloaders signed "
+            "by its maker, FreeABL would not start. Not flashing" if v['secure'] else
+            "the bootloader does not say whether secure boot is off (getvar secure): not flashing")
     slot = (v['current-slot'] or '').lstrip('_')
     if slot not in SLOTS:
         die(f"cannot read the active slot (current-slot = {v['current-slot']!r})")

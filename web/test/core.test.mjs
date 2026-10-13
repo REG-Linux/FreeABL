@@ -70,6 +70,13 @@ test('happy path: backup, flash over EDL, restore', async () => {
   assert.ok(prefix(x.sim, 'abl_a', STOCK7));
 });
 
+test('secure boot on, or not reported: refused', async () => {
+  await assert.rejects(core.check(new SimDevice({ stockA: STOCK7, stockB: STOCK7, vars: { secure: 'yes' } }).fastboot, table, quiet), /secure boot is on/);
+  const sim = new SimDevice({ stockA: STOCK7, stockB: STOCK7 });
+  delete sim.vars.secure;
+  await assert.rejects(core.check(sim.fastboot, table, quiet), /does not say whether secure boot/);
+});
+
 test('locked and low battery refused', async () => {
   await assert.rejects(core.check(new SimDevice({ stockA: STOCK7, stockB: STOCK7, vars: { unlocked: 'no' } }).fastboot, table, quiet), /locked/);
   await assert.rejects(core.check(new SimDevice({ stockA: STOCK7, stockB: STOCK7, vars: { 'battery-voltage': '3500' } }).fastboot, table, quiet), /battery/);

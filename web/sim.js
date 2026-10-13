@@ -20,7 +20,7 @@ export function signedElf(version, tag) {
 
 export class SimDevice {
   constructor({ stockA, stockB, vars = {}, msmId = 0x2520e1, critical = false, corrupt = false } = {}) {
-    this.vars = { serialno: 'SIM12345', unlocked: 'yes', product: 'kalama', variant: 'SGP UFS',
+    this.vars = { serialno: 'SIM12345', unlocked: 'yes', secure: 'no', product: 'kalama', variant: 'SGP UFS',
                   'current-slot': 'a', 'battery-voltage': '4100', ...vars };
     this.msmId = msmId;
     this.critical = critical;

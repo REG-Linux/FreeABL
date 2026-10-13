@@ -350,7 +350,7 @@ export class FakePhone {
                 configureLogs = true, critical = false, corrupt = false, lag = {}, busy = false, vars = {}, stockA, stockB } = {}) {
     Object.assign(this, { sahara, msmId, hwidTop, serial, chipIdFails, commandMode, memory, loader, maxPayload,
                           configureLogs, critical, corrupt, lag, busy });
-    this.vars = { serialno: 'FAKE1234', unlocked: 'yes', product: 'kalama', variant: 'SGP UFS', 'current-slot': 'a',
+    this.vars = { serialno: 'FAKE1234', unlocked: 'yes', secure: 'no', product: 'kalama', variant: 'SGP UFS', 'current-slot': 'a',
                   'battery-voltage': '4100', 'has-slot:abl': 'yes', ...vars };
     this.sectorSize = memory === 'emmc' ? 512 : 4096;
     const ss = this.sectorSize, abl = (1 << 20) / ss;

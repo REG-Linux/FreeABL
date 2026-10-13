@@ -27,10 +27,11 @@ class Dev:
         os.mkdir(self.bin)
         for t in ('fastboot', 'edl'):
             os.symlink(os.path.join(HERE, 'fakedev.py'), os.path.join(self.bin, t))
-        self.vars = dict(serialno='TEST1234', unlocked='yes', product='kalama',
+        self.vars = dict(serialno='TEST1234', unlocked='yes', secure='no', product='kalama',
                          variant='SGP UFS', **{'current-slot': 'a', 'battery-voltage': '4100'},
                          msm=0x2520e1)
         self.vars.update(v)
+        self.vars = {k: x for k, x in self.vars.items() if x is not None}
         json.dump(self.vars, open(os.path.join(self.dir, 'vars.json'), 'w'))
         for p, data in (('abl_a', stock_a), ('abl_b', stock_b)):
             open(os.path.join(self.dir, p), 'wb').write(data.ljust(SIZE, b'\0'))
@@ -93,6 +94,14 @@ shutil.rmtree(d.dir)
 # 2. locked bootloader
 d = Dev(STOCK7, STOCK7, unlocked='no')
 rc, out = d.run('check'); check('check: locked device refused', rc != 0 and 'locked' in out, out)
+shutil.rmtree(d.dir)
+
+# 2b. secure boot on, or not reported
+d = Dev(STOCK7, STOCK7, secure='yes')
+rc, out = d.run('check'); check('check: secure boot on refused', rc != 0 and 'secure boot is on' in out, out)
+shutil.rmtree(d.dir)
+d = Dev(STOCK7, STOCK7, secure=None)
+rc, out = d.run('check'); check('check: secure not reported refused', rc != 0 and 'secure boot is off' in out, out)
 shutil.rmtree(d.dir)
 
 # 3. low battery

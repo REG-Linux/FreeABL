@@ -43,6 +43,9 @@ into `~/FreeABL-backups/`, or pack a tool backup for the web page with
 - **An unlocked bootloader.** FreeABL images carry a test signature: a locked
   device will not run them. Unlocking erases all user data; follow your vendor's
   procedure (usually `fastboot flashing unlock` with the device in fastboot mode).
+- **Secure boot off** (`fastboot getvar secure` says `no`). A test signature only
+  runs when the maker has not turned secure boot on in the chip. Both flashers
+  stop otherwise; nothing can change this from software.
 - **Battery above 50%.** The bootloader does not charge.
 - **A computer** (Linux, macOS or Windows) and a USB cable that carries data.
 - **Python 3.8 or later.**
@@ -87,7 +90,7 @@ instead of `./tools/freeabl-flash.py ...`.
    ./tools/freeabl-flash.py check
    ```
 
-   This reads `unlocked`, the active slot and the battery, and stops if anything is
+   This reads `unlocked`, `secure`, the active slot and the battery, and stops if anything is
    wrong. The serial number and the active slot are saved for the next steps.
 
 2. **Back up.** Boot the device to EDL. From fastboot: `fastboot reboot`, let
@@ -168,7 +171,7 @@ through where it would otherwise stop:
 ```
 
 The confirmation then reads `FLASH-UNTESTED-ABL_A`. What `--untested` does
-**not** skip: the unlocked and battery checks, the verified backup of the stock
+**not** skip: the unlocked, secure boot and battery checks, the verified backup of the stock
 ABL, the checksum, and the signature format check. If your stock ABL is signed
 in another format than the FreeABL image for that SoC, the device would not run
 it, and the tool stops whatever the flags.

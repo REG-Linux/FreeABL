@@ -135,11 +135,14 @@ export async function checkImage(dev, name, bytes, sums, log) {
 export async function check(fb, table, log) {
   await fb.connect();
   const v = {};
-  for (const k of ['serialno', 'product', 'variant', 'unlocked', 'current-slot', 'battery-voltage']) {
+  for (const k of ['serialno', 'product', 'variant', 'unlocked', 'secure', 'current-slot', 'battery-voltage']) {
     v[k] = await fb.getVar(k).catch(() => null);
     log(`  ${k.padEnd(16)} ${v[k] || '-'}`);
   }
   if (v.unlocked !== 'yes') stop('the bootloader is locked. FreeABL images carry a test signature and need an unlocked bootloader');
+  // a test signature only runs with secure boot off (fuse not blown); an update could turn it on
+  if (v.secure !== 'no') stop(v.secure ? `secure boot is on (secure = ${v.secure}): this device only runs bootloaders signed by its maker, FreeABL would not start. Not flashing`
+                                       : 'the bootloader does not say whether secure boot is off (getvar secure): not flashing');
   const slot = (v['current-slot'] || '').replace(/^_/, '');
   if (!SLOTS.includes(slot)) stop(`cannot read the active slot (current-slot = ${v['current-slot']})`);
   const mv = parseInt(v['battery-voltage'] || '0', 10) || 0;
