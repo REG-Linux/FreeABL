@@ -121,6 +121,9 @@ async function doCheck() {
   fb = fastbootDriver();
   state = await core.check(fb, table, log);
   log(`OK: device ${state.serial}, active slot ${state.slot}. Next: boot it to EDL and back up.`);
+  if (!$('loader').files[0] && !SIM) {
+    log(`The backup needs the EDL loader: choose it now in section 1 (${dev.loaderHint || "the firehose loader from your device's firmware package"}).`);
+  }
 }
 
 async function doFbAndroid() {
@@ -132,6 +135,11 @@ async function doFbAndroid() {
 async function doBackup() {
   const dev = selection();
   log('== Backup');
+  // still answering in fastboot: it is not in EDL yet (gone: it was restarted by hand)
+  if (fb && !SIM && (await Promise.race([fb.getVar('serialno'), new Promise((r) => setTimeout(() => r(null), 2000))]))) {
+    throw new core.Stop('the device is still in fastboot mode: use "Restart Android", then "Connect over USB debugging and restart in EDL" (or your device\'s own way into EDL), then back up');
+  }
+  fb = null;
   const s = await edlSession(dev);
   const chosen = await readFile($('image'));   // to recognise FreeABL on a slot
   made = await core.backup(s.driver, dev, state, s.msmId, log, { freeablImages: chosen ? [chosen] : [] });
