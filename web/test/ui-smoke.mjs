@@ -10,7 +10,8 @@ import { join, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
 
-const ROOT = fileURLToPath(new URL('../..', import.meta.url));
+// SITE_ROOT: serve another tree, e.g. the Pages site built by pages.yml
+const ROOT = process.env.SITE_ROOT ? join(process.env.SITE_ROOT, '/') : fileURLToPath(new URL('../..', import.meta.url));
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json' };
 const server = http.createServer((req, res) => {
   const p = join(ROOT, decodeURIComponent(new URL(req.url, 'http://x').pathname));

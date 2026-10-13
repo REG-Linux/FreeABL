@@ -1,0 +1,41 @@
+# Publishes the web flasher to GitHub Pages (https://reglinux.org/FreeABL/web/)
+# after the build workflow passed on main. Skipped while the repository is private.
+name: pages
+on:
+  workflow_run:
+    workflows: [build]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    if: ${{ !github.event.repository.private && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success') }}
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}web/
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Site (the page, its scripts and the device table only)
+        run: |
+          mkdir -p _site/web
+          cp devices.json _site/
+          cp -r web/index.html web/spike.html web/style.css web/app.js web/core.js web/sim.js web/usb.js web/vendor _site/web/
+          printf '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=web/"><title>FreeABL Flasher</title><a href="web/">FreeABL Flasher</a>\n' > _site/index.html
+          touch _site/.nojekyll
+          find _site -type f | sort
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4
