@@ -1,4 +1,4 @@
-# Publishes the web flasher to GitHub Pages (https://reglinux.org/FreeABL/web/)
+# Publishes the web flasher to GitHub Pages (https://reg-linux.github.io/FreeABL/web/)
 # after the build workflow passed on main. Skipped while the repository is private.
 name: pages
 on:

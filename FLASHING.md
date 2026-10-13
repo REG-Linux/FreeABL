@@ -65,7 +65,7 @@ into `~/FreeABL-backups/`, or pack a tool backup for the web page with
   [release page](https://github.com/REG-Linux/FreeABL/releases), with its
   `.sha256` file (or `SHA256SUMS`) in the same folder.
 - **The web flasher instead of the command line**, if you prefer:
-  <https://reglinux.org/FreeABL/web/> in Chrome or Edge on a computer. Same
+  <https://reg-linux.github.io/FreeABL/web/> in Chrome or Edge on a computer. Same
   steps and checks; it needs no Python, fastboot or edl tool.
 
 ## Know how to reach EDL before you flash

@@ -77,7 +77,7 @@ over EDL, flashes the active slot only and verifies the copy:
 ./tools/freeabl-flash.py restore -d pockets --loader LOADER     # back to stock
 ```
 
-A web flasher with the same checks runs at <https://reglinux.org/FreeABL/web/> (Chrome or Edge; source in [`web/`](web/README.md)). Its steps ran on an Odin 2 Portal outside the browser; it has not yet been used in a browser on a device.
+A web flasher with the same checks runs at <https://reg-linux.github.io/FreeABL/web/> (Chrome or Edge; source in [`web/`](web/README.md)). Its steps ran on an Odin 2 Portal outside the browser; it has not yet been used in a browser on a device.
 
 ## SD card
 
