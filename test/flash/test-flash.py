@@ -293,7 +293,7 @@ rc, out = d.run('restore', '-d', 'pockets', '--via', 'fastboot', stdin='RESTORE-
 check('restore over fastboot without the build: warned', rc == 0 and 'cannot tell the Android build' in out, out)
 new = [i for i in bjson(d).values() if i['android']['patch'] == '2025-02-05'][0]['android']
 v = json.load(open(os.path.join(d.dir, 'vars.json')))
-v.update({'android-os-version': '13', 'android-security-patch': '2025-02-05', 'vbmeta-sha256': new['vbmeta_sha256']})
+v.update({'android-os-version': '13', 'android-security-patch': '2025-02-05', 'vbmeta-sha256': new['vbmeta_sha256'][:59].upper()})
 json.dump(v, open(os.path.join(d.dir, 'vars.json'), 'w'))
 rc, out = d.run('restore', '-d', 'pockets', '--via', 'fastboot', stdin='RESTORE-ABL_A\n')
 check('restore over fastboot with the build: checked', rc == 0 and 'same Android build' in out and 'Note' not in out, out)

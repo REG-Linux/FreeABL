@@ -197,7 +197,15 @@ test('restore over fastboot: checked with FreeABL that reports the build, warned
   Object.assign(x.sim.vars, { 'android-os-version': a.os_version, 'android-security-patch': a.patch, 'vbmeta-sha256': a.vbmeta_sha256 });
   await core.restore(r);
   assert.doesNotMatch(said, /Note/);
-  x.sim.vars['vbmeta-sha256'] = 'f'.repeat(64);
+  // what FreeABL 0.2 sent on the Portal: 59 digits, upper case; later builds send 32
+  for (const v of [a.vbmeta_sha256.slice(0, 59).toUpperCase(), a.vbmeta_sha256.slice(0, 32)]) {
+    x.sim.vars['vbmeta-sha256'] = v;
+    await core.restore(r);
+    assert.doesNotMatch(said, /Note/);
+  }
+  x.sim.vars['vbmeta-sha256'] = 'f'.repeat(32);
+  await assert.rejects(core.restore(r), /made on Android/);
+  x.sim.vars['vbmeta-sha256'] = a.vbmeta_sha256.slice(0, 16);   // too short to tell: not trusted
   await assert.rejects(core.restore(r), /made on Android/);
   const old = await core.loadBackup(core.makeTar(Object.entries(core.readTar(x.b.tar)).map(([name, data]) =>
     ({ name, data: name.endsWith('backup.json') ? new TextEncoder().encode(JSON.stringify({ ...x.bk.info, android: undefined })) : data }))), x.dev, x.state);

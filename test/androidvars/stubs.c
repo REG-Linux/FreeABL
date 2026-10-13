@@ -14,6 +14,7 @@ UINTN AsciiSPrint (CHAR8 *Buf, UINTN Size, CONST CHAR8 *Fmt, ...) {
   for (size_t i = 0; Fmt[i] && j < sizeof (f) - 2; i++) {   /* %a is %s in EDK2 */
     f[j++] = Fmt[i];
     if (Fmt[i] == '%' && Fmt[i + 1] == 'a') { f[j++] = 's'; i++; }
+    else if (Fmt[i] == 'x' && j >= 2) f[j - 1] = 'X';   /* EDK2's %x is upper case */
   }
   f[j] = 0;
   va_list ap; va_start (ap, Fmt); int n = vsnprintf (Buf, Size, f, ap); va_end (ap);

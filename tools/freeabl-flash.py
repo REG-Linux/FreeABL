@@ -359,7 +359,11 @@ def same_build(a, b):
     if not a or not b:
         return None
     if a.get('vbmeta_sha256') and b.get('vbmeta_sha256'):
-        return a['vbmeta_sha256'] == b['vbmeta_sha256']
+        # FreeABL's fastboot sends the first 32 hex digits (a reply holds 60 characters;
+        # FreeABL 0.2 sent 59, upper case): compare what both sides have, at least 32
+        x, y = a['vbmeta_sha256'].lower(), b['vbmeta_sha256'].lower()
+        n = min(len(x), len(y))
+        return n >= 32 and x[:n] == y[:n]
     if all((a.get('os_version'), a.get('patch'), b.get('os_version'), b.get('patch'))):
         return a['os_version'] == b['os_version'] and a['patch'] == b['patch']
     return None

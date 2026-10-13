@@ -43,9 +43,10 @@ for name, parts in cases.items():
     a = ff.android_from(vb, None, None)
     if not (a and a['os_version'] and a['patch']):
         a = ff.android_from(vb, None, parts['boot'])
-    py = {'os_version': a['os_version'] or '', 'patch': a['patch'] or '', 'vbmeta_sha256': a['vbmeta_sha256'] or ''}
+    # FreeABL sends the first 32 hex digits: a fastboot reply holds 60 characters
+    py = {'os_version': a['os_version'] or '', 'patch': a['patch'] or '', 'vbmeta_sha256': (a['vbmeta_sha256'] or '')[:32]}
     c = json.loads(subprocess.run([os.path.join(W, 'abv'), d, 'a'], capture_output=True, text=True, check=True).stdout)
-    ok = c == py and c['patch']
+    ok = c == py and c['patch'] and all(len(v) <= 60 for v in c.values())
     bad += not ok
     print(f"{'ok  ' if ok else 'FAIL'} {name}: {c}" + ('' if ok else f' (tool: {py})'))
 sys.exit(1 if bad else 0)

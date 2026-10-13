@@ -201,10 +201,17 @@ export function androidLabel(a) {
   return a.os_version && (a.os_version !== os || a.patch !== patch) ? `${user} (boot side: Android ${a.os_version}, ${a.patch || '?'})` : user;
 }
 
+// FreeABL's fastboot sends the first 32 hex digits (a reply holds 60 characters;
+// FreeABL 0.2 sent 59, upper case): compare what both sides have, at least 32
+export function sameDigest(x, y) {
+  const a = x.toLowerCase(), b = y.toLowerCase(), n = Math.min(a.length, b.length);
+  return n >= 32 && a.slice(0, n) === b.slice(0, n);
+}
+
 /** true or false when the two can be compared, null when they cannot. */
 export function sameBuild(a, b) {
   if (!a || !b) return null;
-  if (a.vbmeta_sha256 && b.vbmeta_sha256) return a.vbmeta_sha256 === b.vbmeta_sha256;
+  if (a.vbmeta_sha256 && b.vbmeta_sha256) return sameDigest(a.vbmeta_sha256, b.vbmeta_sha256);
   if (a.os_version && a.patch && b.os_version && b.patch) return a.os_version === b.os_version && a.patch === b.patch;
   return null;
 }
