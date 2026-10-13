@@ -152,3 +152,109 @@ test('empty active ABL refused at backup', async () => {
   const x = await setup({ stockA: STOCK7, stockB: EMPTY, vars: { 'current-slot': 'b' } }, { device: 'pockets' }).catch((e) => e);
   assert.match(String(x.message), /signature format empty/);
 });
+
+// --- Android builds ----------------------------------------------------------
+test('backup records the Android build; boot side and system side told apart', async () => {
+  const x = await setup({ stockA: STOCK7, stockB: STOCK7 }, { device: 'pockets' });
+  assert.equal(x.bk.info.android.os_version, '13');
+  assert.equal(x.bk.info.android.patch, '2024-05-05');
+  assert.match(x.bk.info.android.vbmeta_sha256, /^[0-9a-f]{64}$/);
+  assert.equal(x.b.tarName, 'freeabl-backup-SIM12345-android13-2024-05-05.tar');
+  const gki = await setup({ stockA: STOCK7, stockB: STOCK7, android: { a: { gki: true, patch: '2023-06-05' }, b: {} } }, { device: 'pockets' });
+  assert.equal(gki.bk.info.android.patch, '2023-06-05');
+  const split = await setup({ stockA: STOCK6, stockB: STOCK6, msmId: 0x99,
+                              android: { a: { os: '11', patch: '2024-03-05', system: { os: '13', patch: '2025-03-05' } }, b: {} } },
+                            { device: 'pocketmax' });
+  assert.equal(core.androidLabel(split.bk.info.android), 'Android 13, security patch 2025-03-05 (boot side: Android 11, 2024-03-05)');
+  const old = await setup({ stockA: STOCK7, stockB: STOCK7, android: { a: null, b: null } }, { device: 'pockets' });
+  assert.equal(old.bk.info.android, null);
+});
+
+test('restore over EDL refuses a backup from another Android build', async () => {
+  const x = await setup({ stockA: STOCK7, stockB: STOCK7 }, { device: 'pockets' });
+  await core.flash(flashArgs(x, FREE7));
+  // an update that came back to slot a (two updates) brought a new build
+  x.sim.androidUpdate('a', { patch: '2025-02-05' });
+  const r = { via: 'edl', edl: x.sim.edl, state: x.state, bk: x.bk, confirm: typing('RESTORE-ABL_A'), log: quiet };
+  await assert.rejects(core.restore(r), /made on Android 13, security patch 2024-05-05; the device now runs Android 13, security patch 2025-02-05/);
+  assert.ok(prefix(x.sim, 'abl_a', FREE7));
+  // the backup made on this build restores
+  x.sim.parts.abl_a.set(STOCK7);
+  const y = await core.backup(x.sim.edl, x.dev, x.state, null, quiet);
+  x.sim.parts.abl_a.set(FREE7);
+  await core.restore({ ...r, bk: await core.loadBackup(y.tar, x.dev, x.state) });
+  assert.ok(prefix(x.sim, 'abl_a', STOCK7));
+});
+
+test('restore over fastboot: checked with FreeABL that reports the build, warned without', async () => {
+  const x = await setup({ stockA: STOCK7, stockB: STOCK7 }, { device: 'pockets' });
+  let said = '';
+  const r = { via: 'fastboot', fb: x.sim.fastboot, state: x.state, bk: x.bk, log: quiet,
+              confirm: async (p, msg) => { said = msg; return p; } };
+  await core.restore(r);
+  assert.match(said, /cannot tell the Android build/);
+  const a = x.bk.info.android;
+  Object.assign(x.sim.vars, { 'android-os-version': a.os_version, 'android-security-patch': a.patch, 'vbmeta-sha256': a.vbmeta_sha256 });
+  await core.restore(r);
+  assert.doesNotMatch(said, /Note/);
+  x.sim.vars['vbmeta-sha256'] = 'f'.repeat(64);
+  await assert.rejects(core.restore(r), /made on Android/);
+  const old = await core.loadBackup(core.makeTar(Object.entries(core.readTar(x.b.tar)).map(([name, data]) =>
+    ({ name, data: name.endsWith('backup.json') ? new TextEncoder().encode(JSON.stringify({ ...x.bk.info, android: undefined })) : data }))), x.dev, x.state);
+  await core.restore({ ...r, bk: old });
+  assert.match(said, /does not record its Android build/);
+});
+
+test('Android versions FreeABL was validated on', async () => {
+  const t = structuredClone(table);
+  t.devices.pockets.android = [{ os_version: '13', patch: '2024-05-05' }];
+  const on = async (build) => {
+    const sim = new SimDevice({ stockA: STOCK7, stockB: STOCK7, android: { a: build, b: {} } });
+    const dev = core.resolveDevice(t, { device: 'pockets' });
+    const state = await core.check(sim.fastboot, t, quiet);
+    const b = await core.backup(sim.edl, dev, state, await core.edlConnect(sim.edl, dev, new Uint8Array(1), false, quiet), quiet);
+    return { sim, dev, state, b, bk: await core.loadBackup(b.tar, dev, state) };
+  };
+  const x = await on({ patch: '2024-05-01' });   // same month
+  await core.flash(flashArgs(x, FREE7));
+  const y = await on({ os: '14', patch: '2025-01-05' });
+  await assert.rejects(core.flash(flashArgs(y, FREE7)), /not run on Android 14, security patch 2025-01-05.*Tester mode/);
+  let said = '';
+  await core.flash(flashArgs(y, FREE7, { untested: true, confirm: async (p, m) => { said = m; return 'FLASH-UNTESTED-ABL_A'; } }));
+  assert.match(said, /validated: Android 13 2024-05/);
+  assert.ok(prefix(y.sim, 'abl_a', FREE7));
+  // update over fastboot: FreeABL tells the build; a listed one passes, another needs tester mode
+  y.sim.vars['android-os-version'] = '13'; y.sim.vars['android-security-patch'] = '2024-05-05';
+  await core.flash(flashArgs(y, FREE7, { via: 'fastboot' }));
+  y.sim.vars['android-security-patch'] = '2025-01-05';
+  await assert.rejects(core.flash(flashArgs(y, FREE7, { via: 'fastboot' })), /Tester mode/);
+});
+
+// --- firmware dump -------------------------------------------------------------
+async function dumpOf(x) {
+  const plan = await core.dumpPlan(x.sim.edl, x.state);
+  const chunks = [];
+  const info = await core.dump(x.sim.edl, x.dev, x.state, null, plan, { write: async (c) => chunks.push(c.slice()) }, quiet);
+  return { plan, info, blob: new Blob(chunks) };
+}
+
+test('firmware dump: both slots, read only, big partitions left out, usable as a backup', async () => {
+  const x = await setup({ stockA: STOCK7, stockB: STOCK7 }, { device: 'pockets' });
+  const writes = x.sim.writes.length;
+  const { plan, info, blob } = await dumpOf(x);
+  assert.equal(plan.name, 'freeabl-firmware-SIM12345-android13-2024-05-05.tar');
+  assert.deepEqual(plan.skipped, ['userdata (65536 MiB)']);
+  for (const p of ['abl_a', 'abl_b', 'xbl_a', 'xbl_b', 'vbmeta_a', 'vbmeta_system_b', 'boot_a']) assert.ok(info.firmware[p], p);
+  assert.equal(x.sim.writes.length, writes);
+  const listing = execFileSync('tar', ['-tf', '-'], { input: new Uint8Array(await blob.arrayBuffer()) }).toString();
+  assert.match(listing, /SIM12345\/firmware\/xbl_a\.img/);
+  assert.match(listing, /SIM12345\/backup\.json/);
+  // restore from it, as from a backup
+  await core.flash(flashArgs(x, FREE7));
+  const bk = await core.loadBackup(blob, x.dev, x.state);
+  assert.equal(bk.info.android.vbmeta_sha256, x.bk.info.android.vbmeta_sha256);
+  await core.restore({ via: 'edl', edl: x.sim.edl, state: x.state, bk, confirm: typing('RESTORE-ABL_A'), log: quiet });
+  assert.ok(prefix(x.sim, 'abl_a', STOCK7));
+  const sums = new TextDecoder().decode(await (await core.tarIndex(blob))['SIM12345/SHA256SUMS']());
+  assert.match(sums, new RegExp(`${await core.sha256hex(x.sim.parts.xbl_b)}  firmware/xbl_b.img`));
+});

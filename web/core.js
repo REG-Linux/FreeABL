@@ -6,7 +6,8 @@
 //
 // Drivers (real ones in usb.js, simulated ones in sim.js):
 //   fastboot: connect(), getVar(name) -> string|null, flash(part, bytes), reboot()
-//   edl:      connect(loaderBytes, memory) -> {msmId: number|null}, read(part) -> bytes,
+//   edl:      connect(loaderBytes, memory) -> {msmId: number|null}, partitions() ->
+//             [{name, lun, start, sectors, bytes}], read(part, maxBytes?) -> bytes,
 //             write(part, bytes), reset()
 
 export class Stop extends Error {}
@@ -48,32 +49,54 @@ export function mbnVersion(d) {
 }
 
 // --- tar (ustar, files only): the backup is one file the user keeps -----------
-export function makeTar(files) {
+export const tarPad = (n) => new Uint8Array((512 - (n % 512)) % 512);
+export const TAR_END = new Uint8Array(1024);
+
+export function tarHeader(name, size) {
   const enc = new TextEncoder();
+  const h = new Uint8Array(512);
+  const put = (s, off, len) => h.set(enc.encode(s).subarray(0, len), off);
+  const oct = (n, len) => n.toString(8).padStart(len - 1, '0') + '\0';
+  put(name, 0, 100);
+  put(oct(0o644, 8), 100, 8);
+  put(oct(0, 8), 108, 8);
+  put(oct(0, 8), 116, 8);
+  put(oct(size, 12), 124, 12);
+  put(oct(0, 12), 136, 12);
+  put('        ', 148, 8);
+  put('0', 156, 1);
+  put('ustar\0' + '00', 257, 8);
+  let sum = 0;
+  for (const b of h) sum += b;
+  put(sum.toString(8).padStart(6, '0') + '\0 ', 148, 8);
+  return h;
+}
+
+export function makeTar(files) {
   const parts = [];
-  for (const { name, data } of files) {
-    const h = new Uint8Array(512);
-    const put = (s, off, len) => h.set(enc.encode(s).subarray(0, len), off);
-    const oct = (n, len) => n.toString(8).padStart(len - 1, '0') + '\0';
-    put(name, 0, 100);
-    put(oct(0o644, 8), 100, 8);
-    put(oct(0, 8), 108, 8);
-    put(oct(0, 8), 116, 8);
-    put(oct(data.length, 12), 124, 12);
-    put(oct(0, 12), 136, 12);
-    put('        ', 148, 8);
-    put('0', 156, 1);
-    put('ustar\0' + '00', 257, 8);
-    let sum = 0;
-    for (const b of h) sum += b;
-    put(sum.toString(8).padStart(6, '0') + '\0 ', 148, 8);
-    parts.push(h, data, new Uint8Array((512 - (data.length % 512)) % 512));
-  }
-  parts.push(new Uint8Array(1024));
+  for (const { name, data } of files) parts.push(tarHeader(name, data.length), data, tarPad(data.length));
+  parts.push(TAR_END);
   const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
   let o = 0;
   for (const p of parts) { out.set(p, o); o += p.length; }
   return out;
+}
+
+/** Index of a tar in a Blob or File, without reading the file contents: { name: () => bytes }. */
+export async function tarIndex(blob) {
+  const dec = new TextDecoder();
+  const files = {};
+  for (let o = 0; o + 512 <= blob.size;) {
+    const h = new Uint8Array(await blob.slice(o, o + 512).arrayBuffer());
+    if (allZero(h)) break;
+    const name = dec.decode(h.subarray(0, 100)).replace(/\0.*$/s, '');
+    const size = parseInt(dec.decode(h.subarray(124, 136)).replace(/\0.*$/s, '').trim() || '0', 8);
+    if (!name || Number.isNaN(size) || o + 512 + size > blob.size) stop('the backup file is damaged (not a complete tar archive)');
+    const at = o + 512;
+    files[name] = async () => new Uint8Array(await blob.slice(at, at + size).arrayBuffer());
+    o += 512 + Math.ceil(size / 512) * 512;
+  }
+  return files;
 }
 
 export function readTar(t) {
@@ -91,6 +114,110 @@ export function readTar(t) {
   return files;
 }
 
+// --- Android build -------------------------------------------------------------
+// A stock ABL belongs to the Android build it came with: restoring it under
+// another build, or running FreeABL on a build it was not tried on, may not
+// boot. The version and security patch are read as the ABL itself does (CLO
+// VerifiedBoot.c, GetOsVerAndSecPactchLevel): the com.android.build.boot.*
+// properties of vbmeta_<slot>, else the boot image header. vbmeta_sha256 tells
+// two builds apart: vbmeta holds the hashes of all the images.
+
+/** The properties of an AVB vbmeta image, { key: value }; {} if it is not one. */
+export function avbProps(d) {
+  const props = {};
+  if (!d || d.length < 256 || new TextDecoder().decode(d.subarray(0, 4)) !== 'AVB0') return props;
+  const v = new DataView(d.buffer, d.byteOffset, d.byteLength);
+  const u64 = (o) => Number(v.getBigUint64(o, false));
+  const dec = new TextDecoder();
+  let o = 256 + u64(12) + u64(96);              // auxiliary block + descriptors offset
+  const end = o + u64(104);
+  if (end > d.length) return props;
+  while (o + 16 <= end) {
+    const tag = u64(o), n = u64(o + 8);
+    if (tag === 0 && o + 32 <= end) {           // property descriptor: key\0value\0
+      const kl = u64(o + 16), vl = u64(o + 24), k = o + 32;
+      if (k + kl + 1 + vl <= end) props[dec.decode(d.subarray(k, k + kl))] = dec.decode(d.subarray(k + kl + 1, k + kl + 1 + vl));
+    }
+    o += 16 + n;
+  }
+  return props;
+}
+
+/** os_version and security patch (YYYY-MM) from a boot image header, or null. */
+export function bootHeaderVersion(d) {
+  if (!d || d.length < 48 || new TextDecoder().decode(d.subarray(0, 8)) !== 'ANDROID!') return null;
+  const v = new DataView(d.buffer, d.byteOffset, d.byteLength);
+  const raw = v.getUint32(v.getUint32(40, true) >= 3 ? 16 : 44, true);
+  if (!raw) return null;
+  const ver = raw >>> 11, lvl = raw & 0x7ff;
+  const abc = [(ver >>> 14) & 127, (ver >>> 7) & 127, ver & 127];
+  while (abc.length > 1 && abc[abc.length - 1] === 0) abc.pop();
+  return { os_version: abc.join('.'), patch: `${2000 + (lvl >>> 4)}-${String(lvl & 15).padStart(2, '0')}` };
+}
+
+const missing = (e) => /not found/.test(String(e?.message || e));
+
+/**
+ * The Android build on a slot, over EDL (read only), or null when there is no
+ * vbmeta nor version. os_version/patch: the boot side, what the ABL reads
+ * (boot, or init_boot on GKI devices); system_*: what Android's Settings show.
+ * They differ on devices whose vendor kept an older Android under a newer system.
+ */
+export async function androidBuild(edl, slot) {
+  const get = (p, max) => edl.read(p, max).catch((e) => { if (missing(e)) return null; throw e; });
+  const vb = await get(`vbmeta_${slot}`);
+  const props = avbProps(vb);
+  const sys = avbProps(await get(`vbmeta_system_${slot}`));
+  const prop = (k) => props[`com.android.build.boot.${k}`] || props[`com.android.build.init_boot.${k}`] || null;
+  let os = prop('os_version'), patch = prop('security_patch');
+  if (!os || !patch) {
+    const h = bootHeaderVersion(await get(`boot_${slot}`, 4096)) || bootHeaderVersion(await get(`init_boot_${slot}`, 4096));
+    if (h) { os = h.os_version; patch = h.patch; }
+  }
+  os ||= props['com.android.build.vendor.os_version'] || null;
+  patch ||= props['com.android.build.vendor.security_patch'] || null;
+  if (!vb && !os) return null;
+  return {
+    os_version: os, patch,
+    system_os_version: sys['com.android.build.system.os_version'] || null,
+    system_patch: sys['com.android.build.system.security_patch'] || null,
+    fingerprint: sys['com.android.build.system.fingerprint'] || prop('fingerprint') || props['com.android.build.vendor.fingerprint'] || null,
+    vbmeta_sha256: vb ? await sha256hex(vb) : null,
+  };
+}
+
+/** The Android build as FreeABL's fastboot reports it (FreeABL 0.2 and later), or null. */
+export async function fastbootAndroid(fb) {
+  const g = async (k) => (await fb.getVar(k).catch(() => null)) || null;
+  const a = { os_version: await g('android-os-version'), patch: await g('android-security-patch'),
+              fingerprint: null, vbmeta_sha256: await g('vbmeta-sha256') };
+  return a.os_version || a.vbmeta_sha256 ? a : null;
+}
+
+export function androidLabel(a) {
+  if (!a) return 'Android version not known';
+  const os = a.system_os_version || a.os_version, patch = a.system_patch || a.patch;
+  const user = `Android ${os || '?'}, security patch ${patch || '?'}`;
+  return a.os_version && (a.os_version !== os || a.patch !== patch) ? `${user} (boot side: Android ${a.os_version}, ${a.patch || '?'})` : user;
+}
+
+/** true or false when the two can be compared, null when they cannot. */
+export function sameBuild(a, b) {
+  if (!a || !b) return null;
+  if (a.vbmeta_sha256 && b.vbmeta_sha256) return a.vbmeta_sha256 === b.vbmeta_sha256;
+  if (a.os_version && a.patch && b.os_version && b.patch) return a.os_version === b.os_version && a.patch === b.patch;
+  return null;
+}
+
+const month = (p) => (p || '').slice(0, 7);
+/** listed: the device has validated Android versions in devices.json; ok: this one is among them. */
+export function androidValidated(dev, a) {
+  const list = dev.android || [];
+  if (!list.length) return { listed: false, ok: false, list };
+  const ok = !!a?.patch && list.some((x) => String(x.os_version) === String(a.os_version) && month(x.patch) === month(a.patch));
+  return { listed: true, ok, list };
+}
+
 // --- devices ----------------------------------------------------------------
 export function resolveDevice(table, { device, soc, memory, untested, forWrite = true }) {
   if (device === 'other') {
@@ -103,7 +230,7 @@ export function resolveDevice(table, { device, soc, memory, untested, forWrite =
   const d = table.devices[device];
   if (!d) stop(`unknown device ${device}`);
   if (soc && soc !== d.soc) stop(`the ${d.name} is ${d.soc}: for another SoC choose "Other device"`);
-  return { id: device, name: d.name, soc: d.soc, mbn: d.mbn, validated: d.validated,
+  return { id: device, name: d.name, soc: d.soc, mbn: d.mbn, validated: d.validated, android: d.android || [],
            memory: memory || d.memory || 'ufs', msmId: d.msm_id === null ? null : parseInt(d.msm_id, 16),
            loaderHint: d.loader_hint_web || d.loader_hint };
 }
@@ -163,6 +290,12 @@ export async function edlConnect(edl, dev, loader, untested, log) {
   return msmId;
 }
 
+// file names: which Android build a backup or firmware file is from
+const buildTag = (a) => {
+  const os = a?.system_os_version || a?.os_version, patch = a?.system_patch || a?.patch;
+  return patch ? `-android${os || ''}-${patch}` : '';
+};
+
 /** Reads abl_a and abl_b twice. Returns the backup archive and its description. */
 export async function backup(edl, dev, state, msmId, log) {
   const info = { device: dev.id, soc: dev.soc, product: state.product || null, variant: state.variant || null,
@@ -183,30 +316,33 @@ export async function backup(edl, dev, state, msmId, log) {
   }
   const act = info.partitions[`abl_${state.slot}`].mbn;
   if (act !== dev.mbn) stop(`the active abl_${state.slot} has signature format ${act}, FreeABL for the ${dev.name} is v${dev.mbn}: not flashing this device`);
+  info.android = await androidBuild(edl, state.slot);
+  log(`slot ${state.slot}: ${androidLabel(info.android)}${info.android?.fingerprint ? ` (${info.android.fingerprint})` : ''}`);
   const enc = new TextEncoder();
   files.push({ name: `${state.serial}/backup.json`, data: enc.encode(JSON.stringify(info, null, 1) + '\n') });
   files.push({ name: `${state.serial}/SHA256SUMS`, data: enc.encode(SLOTS.map((s) => `${info.partitions[`abl_${s}`].sha256}  abl_${s}.stock.img\n`).join('')) });
   const tar = makeTar(files);
   const report = dev.validated === 'current' ? null :
     `soc ${dev.soc}, MSM ID ${info.msm_id || 'not seen'}, stock signature v${act}, fastboot product ${state.product || '-'}, variant ${state.variant || '-'}, storage ${dev.memory}`;
-  return { tar, tarName: `freeabl-backup-${state.serial}.tar`, info, report };
+  return { tar, tarName: `freeabl-backup-${state.serial}${buildTag(info.android)}.tar`, info, report };
 }
 
-/** Parses and checks a backup archive. state: from check(), or null (EDL restore without fastboot). */
+/** Parses and checks a backup or firmware archive (bytes, Blob or File). state: from check(), or null (EDL restore without fastboot). */
 export async function loadBackup(tar, dev, state) {
-  const files = readTar(tar);
+  const files = await tarIndex(tar instanceof Blob ? tar : new Blob([tar]));
   const jsonName = Object.keys(files).find((n) => n.endsWith('/backup.json'));
   if (!jsonName) stop('this is not a FreeABL backup (no backup.json)');
   const dir = jsonName.slice(0, -'backup.json'.length);
-  const info = JSON.parse(new TextDecoder().decode(files[jsonName]));
+  const info = JSON.parse(new TextDecoder().decode(await files[jsonName]()));
   if (info.device !== dev.id || info.soc !== dev.soc) stop(`the backup was made for '${info.device}' (${info.soc}), not '${dev.id}' (${dev.soc})`);
   if (state && info.serial !== state.serial) stop(`the backup is for device ${info.serial}, the connected device is ${state.serial}`);
-  if (state && info.slot !== state.slot) stop('the active slot changed since the backup: make a new backup');
+  if (state && info.slot !== state.slot) stop('the active slot changed since the backup (an Android update?): make a new backup');
   const parts = {};
   for (const s of SLOTS) {
     const p = `abl_${s}`;
-    const d = files[`${dir}${p}.stock.img`];
-    if (!d) stop(`the backup has no ${p}`);
+    const f = files[`${dir}${p}.stock.img`] || files[`${dir}firmware/${p}.img`];
+    if (!f) stop(`the backup has no ${p}`);
+    const d = await f();
     if ((await sha256hex(d)) !== info.partitions[p].sha256) stop(`${p} in the backup is damaged (sha256 mismatch)`);
     parts[p] = d;
   }
@@ -225,8 +361,22 @@ export async function flash({ via, edl, fb, dev, state, bk, image, imageSha, unt
   let phrase = `FLASH-${part.toUpperCase()}`;
   if (dev.validated === 'earlier') warn = `WARNING: the ${dev.name} was validated with an earlier FreeABL build only. This build was not run on it yet.`;
   if (dev.validated === 'none') warn = 'WARNING: FreeABL was never run on this device. If it does not boot, you need EDL without Android (button combination or test point) and your backup to recover.';
-  if (dev.validated !== 'current') {
-    if (!untested) stop(`the ${dev.name} is not validated with this build: tick "Tester mode (untested)"`);
+  // the Android build: read just now over EDL (in the backup), or from FreeABL's fastboot
+  if (via === 'fastboot') await fb.connect();
+  const android = (via === 'fastboot' && (await fastbootAndroid(fb))) || bk.info.android || null;
+  const av = androidValidated(dev, android);
+  let androidUntested = false;
+  if (!av.listed) log(`note: no validated Android versions recorded for the ${dev.name}; this one is ${androidLabel(android)}`);
+  else if (!av.ok) {
+    androidUntested = true;
+    const was = av.list.map((x) => `Android ${x.os_version} ${month(x.patch)}`).join(', ');
+    warn += `${warn ? '\n' : ''}WARNING: FreeABL was not run on ${androidLabel(android)} on the ${dev.name} (validated: ${was}). If Android does not start, FreeABL's menu and fastboot still do: use Back to stock over fastboot.`;
+  }
+  if (dev.validated !== 'current' || androidUntested) {
+    if (!untested) {
+      stop(dev.validated !== 'current' ? `the ${dev.name} is not validated with this build: tick "Tester mode (untested)"`
+                                       : `FreeABL was not run on ${androidLabel(android)} on the ${dev.name} yet: tick "Tester mode (untested)" to try it`);
+    }
     phrase = `FLASH-UNTESTED-${part.toUpperCase()}`;
   }
   const typed = await confirm(phrase, `About to write the image (sha256 ${imageSha.slice(0, 16)}...) to ${part} of the ${dev.name} ${state.serial} via ${via}. Nothing else is written.${warn ? '\n' + warn : ''}`);
@@ -253,8 +403,23 @@ export async function restore({ via, edl, fb, state, bk, confirm, log }) {
   const part = `abl_${state.slot}`;
   const stock = bk.parts[part];
   if (['empty', null].includes(mbnVersion(stock))) stop(`the backup of ${part} is not a signed ABL: refusing to write it`);
+  // a stock ABL from another Android build may not start this one
+  if (via === 'fastboot') await fb.connect();
+  const was = bk.info.android || null;
+  const now = via === 'edl' ? await androidBuild(edl, state.slot) : await fastbootAndroid(fb);
+  const same = sameBuild(was, now);
+  let note = '';
+  if (same === false) {
+    stop(`this backup was made on ${androidLabel(was)}; the device now runs ${androidLabel(now)} (an Android update since?). `
+         + 'Its bootloader may not start this Android. Use the backup or firmware file you made on this Android build (your latest one).');
+  }
+  if (same === null) {
+    note = !was ? '\nNote: this backup does not record its Android build (made by an earlier flasher): not checked.'
+                : '\nNote: this FreeABL cannot tell the Android build. If Android was updated since this backup, cancel and restore over EDL, which checks it.';
+    log(note.trim());
+  } else log(`backup and device on the same Android build (${androidLabel(now)})`);
   const phrase = `RESTORE-${part.toUpperCase()}`;
-  const typed = await confirm(phrase, `About to write the stock backup to ${part} of ${state.serial} via ${via}.`);
+  const typed = await confirm(phrase, `About to write the stock backup to ${part} of ${state.serial} via ${via}.${note}`);
   if (typed !== phrase) stop('aborted');
   if (via === 'edl') {
     if (!(await writeVerified(edl, part, stock))) stop(`readback of ${part} does not match the backup: do not reboot; retry`);
@@ -265,4 +430,52 @@ export async function restore({ via, edl, fb, state, bk, confirm, log }) {
   if ((await fb.getVar('serialno')) !== state.serial) stop('the device in fastboot mode is not the one in the backup');
   await fb.flash(part, stock);
   log(`RESTORED ${part}.`);
+}
+
+// --- firmware dump ---------------------------------------------------------------
+// Everything of the boot chain and the system images up to DUMP_MAX_BYTES each,
+// both slots, read only, into one tar the user keeps: it is also a backup.
+export const DUMP_MAX_BYTES = 128 << 20;
+const DUMP_SKIP = new Set(['userdata', 'super']);
+
+/** What dump() will read: { parts, skipped, android, name, bytes }. */
+export async function dumpPlan(edl, state) {
+  const all = await edl.partitions();
+  const parts = all.filter((p) => !DUMP_SKIP.has(p.name) && p.bytes <= DUMP_MAX_BYTES);
+  const skipped = all.filter((p) => !parts.includes(p)).map((p) => `${p.name} (${Math.round(p.bytes / (1 << 20))} MiB)`);
+  for (const s of SLOTS) if (!parts.some((p) => p.name === `abl_${s}`)) stop(`EDL: partition abl_${s} not found`);
+  const android = await androidBuild(edl, state.slot);
+  const name = `freeabl-firmware-${state.serial}${buildTag(android)}.tar`;
+  return { parts, skipped, android, name, bytes: parts.reduce((n, p) => n + p.bytes, 0) };
+}
+
+/** Reads the planned partitions into sink.write(bytes) as a tar; loadBackup() takes it like a backup. */
+export async function dump(edl, dev, state, msmId, plan, sink, log) {
+  const info = { device: dev.id, soc: dev.soc, product: state.product || null, variant: state.variant || null,
+                 serial: state.serial, slot: state.slot, msm_id: msmId === null ? null : `0x${msmId.toString(16)}`,
+                 time: new Date().toISOString(), android: plan.android, partitions: {}, firmware: {} };
+  const sums = [];
+  let done = 0;
+  for (const p of plan.parts) {
+    const d = await edl.read(p.name);
+    const h = await sha256hex(d);
+    const file = `${state.serial}/firmware/${p.name}.img`;
+    await sink.write(tarHeader(file, d.length));
+    await sink.write(d);
+    await sink.write(tarPad(d.length));
+    info.firmware[p.name] = { lun: p.lun, start: Number(p.start), sectors: p.sectors, sha256: h };
+    if (/^abl_[ab]$/.test(p.name)) info.partitions[p.name] = { sha256: h, mbn: mbnVersion(d) };
+    sums.push(`${h}  firmware/${p.name}.img\n`);
+    done += d.length;
+    log(`  ${p.name.padEnd(20)} ${String(Math.round(d.length / 1024)).padStart(7)} KiB  ${Math.round((100 * done) / plan.bytes)}%`, true);
+  }
+  const enc = new TextEncoder();
+  for (const [n, data] of [[`${state.serial}/backup.json`, enc.encode(JSON.stringify(info, null, 1) + '\n')],
+                           [`${state.serial}/SHA256SUMS`, enc.encode(sums.join(''))]]) {
+    await sink.write(tarHeader(n, data.length));
+    await sink.write(data);
+    await sink.write(tarPad(data.length));
+  }
+  await sink.write(TAR_END);
+  return info;
 }

@@ -151,6 +151,31 @@ test('device held by another program: says what to close', async () => {
   await assert.rejects(usb.edlDriver(quiet).connect(ph.loader, 'ufs'), /qcserial.*adb kill-server/);
 });
 
+test('partition list, Android build and firmware dump through the real driver; large transfers', async () => {
+  const ph = attach(new FakePhone({ stockA: STOCK7, stockB: STOCK7, android: { a: { patch: '2024-05-05' }, b: { patch: '2023-11-05' } } }).plug('edl'));
+  const edl = usb.edlDriver(quiet);
+  await edl.connect(ph.loader, 'ufs');
+  const names = (await edl.partitions()).map((p) => p.name);
+  for (const n of ['userdata', 'xbl_a', 'xbl_b', 'abl_a', 'abl_b', 'vbmeta_a', 'boot_b']) assert.ok(names.includes(n), n);
+  assert.equal((await core.androidBuild(edl, 'a')).patch, '2024-05-05');
+  assert.equal((await core.androidBuild(edl, 'b')).patch, '2023-11-05');
+  assert.equal((await edl.read('vbmeta_a', 4096)).length, 4096);
+  const before = ph.transfersIn;
+  await edl.read('abl_a');
+  assert.ok(ph.transfersIn - before < 10, `${ph.transfersIn - before} USB transfers for 1 MiB`);
+  const dev = core.resolveDevice(table, { device: 'pockets' });
+  const state = { serial: 'FAKE1234', slot: 'a' };
+  const plan = await core.dumpPlan(edl, state);
+  const chunks = [];
+  const info = await core.dump(edl, dev, state, null, plan, { write: async (c) => chunks.push(c.slice()) }, quiet);
+  assert.deepEqual(Object.keys(info.firmware).sort(), names.filter((n) => n !== 'userdata').sort());   // all small, userdata left out
+  assert.deepEqual(ph.writes, []);
+  assert.ok(ph.firehoseCmds.every((c) => allowed.has(c)), ph.firehoseCmds.join());
+  const bk = await core.loadBackup(new Blob(chunks), dev, state);
+  assert.ok(startsWith(bk.parts.abl_b, STOCK7));
+  assert.equal(bk.info.android.patch, '2024-05-05');
+});
+
 // --- the page's steps (core.js) with the real drivers -------------------------
 async function install(ph, device, stock, image) {
   attach(ph);

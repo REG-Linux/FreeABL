@@ -9,6 +9,8 @@
 // caller stopped waiting for it. lag: { hello, configure, read, program } in
 // ms delays those replies, for a slow loader or a busy computer.
 
+import { vbmetaImage, buildProps, bootHeader } from '../sim.js';
+
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -94,6 +96,7 @@ class FakeUsbDevice {
   }
 
   transferIn(ep, len) {
+    this.phone.transfersIn++;
     return new Promise((resolve, reject) => {
       if (this.gone) return reject(new Error('NetworkError: device disconnected'));
       this.waiters.push({ len, resolve, reject });
@@ -347,7 +350,7 @@ function concat(parts) {
 export class FakePhone {
   constructor({ sahara = 3, msmId = 0x2520e1, hwidTop = 0, serial = 0x1056a040, chipIdFails = false, commandMode = true,
                 memory = 'ufs', loader = new Uint8Array(9000).map((_, i) => (i * 7) & 0xff), maxPayload = 1048576,
-                configureLogs = true, critical = false, corrupt = false, lag = {}, busy = false, vars = {}, stockA, stockB } = {}) {
+                configureLogs = true, critical = false, corrupt = false, lag = {}, busy = false, android = { a: {}, b: {} }, vars = {}, stockA, stockB } = {}) {
     Object.assign(this, { sahara, msmId, hwidTop, serial, chipIdFails, commandMode, memory, loader, maxPayload,
                           configureLogs, critical, corrupt, lag, busy });
     this.vars = { serialno: 'FAKE1234', unlocked: 'yes', secure: 'no', product: 'kalama', variant: 'SGP UFS', 'current-slot': 'a',
@@ -370,8 +373,18 @@ export class FakePhone {
       lun(1, 32, [{ name: 'xbl_a', start: 6, sectors: 16 }]);
       lun(2, 32, [{ name: 'xbl_b', start: 6, sectors: 16 }]);
       this.luns[3] = new Uint8Array(32 * ss);                   // no GPT
-      lun(4, 16 + 2 * abl + 16, [{ name: 'xbl_config_a', start: 6, sectors: 8 }, { name: 'abl_a', start: 16, sectors: abl },
-                                 { name: 'abl_b', start: 16 + abl, sectors: abl }]);
+      const vb = (64 * 1024) / ss, at = 16 + 2 * abl;
+      lun(4, at + 4 * vb + 2 + 16, [{ name: 'xbl_config_a', start: 6, sectors: 8 }, { name: 'abl_a', start: 16, sectors: abl },
+                                    { name: 'abl_b', start: 16 + abl, sectors: abl },
+                                    { name: 'vbmeta_a', start: at, sectors: vb }, { name: 'vbmeta_b', start: at + vb, sectors: vb },
+                                    { name: 'vbmeta_system_a', start: at + 2 * vb, sectors: vb }, { name: 'vbmeta_system_b', start: at + 3 * vb, sectors: vb },
+                                    { name: 'boot_a', start: at + 4 * vb, sectors: 1 }, { name: 'boot_b', start: at + 4 * vb + 1, sectors: 1 }]);
+      for (const sl of ['a', 'b']) {
+        const pr = buildProps(android[sl]);
+        this.part(`vbmeta_${sl}`).set(vbmetaImage(pr.vbmeta));
+        this.part(`vbmeta_system_${sl}`).set(vbmetaImage(pr.system));
+        this.part(`boot_${sl}`).set(bootHeader('13', '2024-05'));
+      }
       // LUN 5 absent: reads are refused
     }
     if (stockA) this.part('abl_a').set(stockA);
@@ -384,6 +397,7 @@ export class FakePhone {
     this.helloVersions = [];
     this.log = [];
     this.loads = 0;
+    this.transfersIn = 0;
     this.state = 'fastboot';
     this.edl = 'pbl';
     this.dev = null;

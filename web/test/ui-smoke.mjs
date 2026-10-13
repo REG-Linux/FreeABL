@@ -51,9 +51,18 @@ try {
   await page.click('#btn-backup');
   await until('Backup verified');
   ok('flash still locked before the backup is proven', await page.$eval('#btn-flash', (b) => b.disabled));
-  for (let i = 0; i < 50 && !readdirSync(dl).some((f) => f.endsWith('.tar')); i++) await new Promise((r) => setTimeout(r, 100));
-  const tar = readdirSync(dl).find((f) => f.endsWith('.tar'));
-  ok('backup downloaded', tar === 'freeabl-backup-SIM12345.tar', String(readdirSync(dl)));
+  const saved = async (re) => {
+    for (let i = 0; i < 50 && !readdirSync(dl).some((f) => re.test(f)); i++) await new Promise((r) => setTimeout(r, 100));
+    return readdirSync(dl).find((f) => re.test(f));
+  };
+  const tar = await saved(/^freeabl-backup-.*\.tar$/);
+  ok('backup downloaded, named after the Android build', tar === 'freeabl-backup-SIM12345-android13-2024-05-05.tar', String(readdirSync(dl)));
+  ok('Android build shown', (await log()).includes('slot a: Android 13, security patch 2024-05-05'));
+  await page.click('#btn-dump');
+  await until('Firmware saved');
+  const fw = await saved(/^freeabl-firmware-.*\.tar$/);
+  ok('firmware saved', fw === 'freeabl-firmware-SIM12345-android13-2024-05-05.tar', String(readdirSync(dl)));
+  ok('firmware: userdata left out', (await log()).includes('Left out: userdata'));
   const proof = await page.$('#backup-proof');
   await proof.uploadFile(join(dl, tar));
   await until('flashing unlocked');
@@ -67,11 +76,12 @@ try {
   await until('Rebooting');
 
   await page.click('[data-tab="restore"]');
-  await (await page.$('#restore-backup')).uploadFile(join(dl, tar));
+  await (await page.$('#restore-backup')).uploadFile(join(dl, fw));
   await page.click('#btn-restore-edl');
   await typePhrase('RESTORE-ABL_A');
   await until('RESTORE VERIFIED');
-  ok('restored over EDL', (await log()).includes('RESTORE VERIFIED'));
+  ok('restored over EDL from the firmware file', (await log()).includes('RESTORE VERIFIED'));
+  ok('same Android build checked', (await log()).includes('backup and device on the same Android build'));
   ok('stock back on abl_a', await page.evaluate(() => window.freeablSim.parts.abl_a[0x104] === 7 && window.freeablSim.parts.abl_a[0x300] !== 0));
 
   await page.goto(url);

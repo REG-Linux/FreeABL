@@ -110,6 +110,36 @@ async function doBackup() {
   if (made.report) $('report').textContent = `Tester report (open a "Device report" issue with it):\n${made.report}`;
 }
 
+// the whole firmware, streamed to a file the user picks (Chrome, Edge), else downloaded at the end
+async function saveTo(name) {
+  if (window.showSaveFilePicker && !SIM) {
+    const h = await window.showSaveFilePicker({ suggestedName: name, types: [{ description: 'tar archive', accept: { 'application/x-tar': ['.tar'] } }] });
+    const w = await h.createWritable();
+    return { write: (c) => w.write(c), close: () => w.close(), abort: () => w.abort() };
+  }
+  const chunks = [];
+  return { write: async (c) => { chunks.push(c.slice()); }, close: async () => download(new Blob(chunks), name), abort: async () => {} };
+}
+
+async function doDump() {
+  const dev = selection();
+  const tag = made.tarName.replace(/^freeabl-backup-/, '');
+  // ask where to save first: the browser only opens its dialog right after the click
+  const sink = await saveTo(`freeabl-firmware-${tag}`);
+  log('== Save the whole firmware (read only)');
+  try {
+    const s = await edlSession(dev);
+    const plan = await core.dumpPlan(s.driver, state);
+    log(`${plan.parts.length} partitions, ${Math.round(plan.bytes / (1 << 20))} MiB, ${core.androidLabel(plan.android)}. Left out: ${plan.skipped.join(', ') || 'none'}`);
+    await core.dump(s.driver, dev, state, s.msmId, plan, sink, log);
+    await sink.close();
+  } catch (e) {
+    await sink.abort().catch(() => {});
+    throw e;
+  }
+  log(`Firmware saved as freeabl-firmware-${tag}. Keep it with your backup: Back to stock accepts it too.`);
+}
+
 async function doProve() {
   const dev = selection();
   const t = await readFile($('backup-proof'));
@@ -137,9 +167,9 @@ async function doReset() {
 
 // --- update and restore -----------------------------------------------------
 async function backupFrom(input, dev, st) {
-  const t = await readFile(input);
-  if (!t) throw new core.Stop('choose your backup file (freeabl-backup-SERIAL.tar)');
-  return core.loadBackup(t, dev, st);
+  const f = input.files[0];
+  if (!f) throw new core.Stop('choose your backup or firmware file (freeabl-backup-… or freeabl-firmware-….tar)');
+  return core.loadBackup(f, dev, st);   // read as needed: a firmware file is large
 }
 
 async function doUpdate() {
@@ -180,6 +210,7 @@ function refresh() {
   $('device-note').textContent = note;
   $('btn-backup').disabled = !state;
   $('backup-proof').disabled = !made;
+  $('btn-dump').disabled = !made;
   $('btn-flash').disabled = !proven;
   $('btn-reset').disabled = !edl;
   const done = [!!state, !!made, !!proven];
@@ -200,6 +231,7 @@ async function init() {
   $('btn-check').onclick = (e) => run(e.target, doCheck);
   $('btn-backup').onclick = (e) => run(e.target, doBackup);
   $('backup-proof').onchange = (e) => run(e.target, doProve);
+  $('btn-dump').onclick = (e) => run(e.target, doDump);
   $('btn-flash').onclick = (e) => run(e.target, doFlash);
   $('btn-reset').onclick = (e) => run(e.target, doReset);
   $('btn-update').onclick = (e) => run(e.target, doUpdate);

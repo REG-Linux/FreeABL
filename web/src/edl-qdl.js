@@ -15,8 +15,8 @@
 // - no reply is ever lost to a timeout (see PatientUsb), and a step waits for
 //   30 s of silence before giving up, so a slow loader or a busy computer only
 //   makes things slower;
-// - only partition read and write by name, and reset, are exposed: no GPT
-//   write, no erase, no slot change.
+// - only the partition list, partition read and write by name, and reset, are
+//   exposed: no GPT write, no erase, no slot change.
 import { Sahara } from "qdl/sahara";
 import { Firehose } from "qdl/firehose";
 import { GPT } from "qdl/gpt";
@@ -27,7 +27,7 @@ import { toXml } from "qdl/xml";
 
 const EXEC_MSM_HW_ID_READ = 0x02;
 const EXEC_READ_CHIP_ID_V3 = 0x0a;
-const CHUNK_SECTORS_BYTES = 64 * 1024;
+const CHUNK_BYTES = 1 << 20;   // per read command and per USB transfer
 const SILENCE_S = 30;
 
 // WebUSB cannot cancel a USB read: one that timed out still takes the next
@@ -39,10 +39,12 @@ class PatientUsb extends usbClass {
   transfer = null;
   error = null;
 
-  /** The next packet, or null after ms without one. */
-  async next(ms) {
+  /** The next packet (at most size bytes), or null after ms without one. */
+  async next(ms, size = this.maxSize) {
     if (!this.packets.length && !this.error) {
-      this.transfer ??= super.read().then((p) => { this.packets.push(p); }, (e) => { this.error = e; })
+      this.transfer ??= this.device.transferIn(this.epIn.endpointNumber, size)
+        .then((r) => { this.packets.push(new Uint8Array(r.data.buffer, r.data.byteOffset, r.data.byteLength)); },
+              (e) => { this.error = e; })
         .finally(() => { this.transfer = null; });
       let timer;
       await Promise.race([this.transfer, new Promise((r) => { timer = setTimeout(r, ms); })]);
@@ -67,7 +69,8 @@ class PatientUsb extends usbClass {
     const parts = [];
     let got = 0;
     while (got < length) {
-      const p = await this.next(SILENCE_S * 1000);
+      // asking for exactly what is left: the transfer cannot run into the reply after the data
+      const p = await this.next(SILENCE_S * 1000, Math.min(length - got, CHUNK_BYTES));
       if (!p) throw new Error("EDL: the device stopped sending data");
       parts.push(p);
       got += p.length;
@@ -276,31 +279,44 @@ export class QdlEdl {
     await quiet();
   }
 
-  async locate(name) {
-    if (this.parts.has(name)) return this.parts.get(name);
+  /** Every partition of every LUN: [{ name, lun, start, sectors, bytes }]. The first of two with one name wins. */
+  async partitions() {
+    if (this.list) return this.list;
     const ss = this.firehose.cfg.SECTOR_SIZE_IN_BYTES;
+    const list = [];
     for (const lun of this.firehose.luns) {
+      let found;
       try {
         const gpt = new GPT(ss);
         if (!gpt.parseHeader(await this.firehose.cmdReadBuffer(lun, 1n, 1), 1n)) continue;
         gpt.parsePartEntries(await this.firehose.cmdReadBuffer(lun, gpt.partEntriesStartLba, gpt.partEntriesSectors));
-        const p = gpt.locatePartition(name);
-        if (p) {
-          const loc = { lun, start: BigInt(p.start), sectors: Number(p.sectors) };
-          this.parts.set(name, loc);
-          return loc;
-        }
+        found = gpt.getPartitions();
       } catch {
-        // a LUN that does not answer: look at the next one
+        continue;   // a LUN that does not answer: look at the next one
+      }
+      for (const p of found) {
+        if (this.parts.has(p.name)) continue;
+        const loc = { name: p.name, lun, start: BigInt(p.start), sectors: Number(p.sectors), bytes: Number(p.sectors) * ss };
+        this.parts.set(p.name, loc);
+        list.push(loc);
       }
     }
-    throw new Error(`EDL: partition ${name} not found`);
+    this.list = list;
+    return list;
   }
 
-  async read(name) {
-    const { lun, start, sectors } = await this.locate(name);
+  async locate(name) {
+    if (!this.parts.has(name)) await this.partitions();
+    if (!this.parts.has(name)) throw new Error(`EDL: partition ${name} not found`);
+    return this.parts.get(name);
+  }
+
+  /** The partition, or its first max bytes (rounded up to a sector). */
+  async read(name, max = Infinity) {
+    const { lun, start } = await this.locate(name);
     const ss = this.firehose.cfg.SECTOR_SIZE_IN_BYTES;
-    const per = Math.max(1, CHUNK_SECTORS_BYTES / ss);
+    const sectors = Math.min(this.parts.get(name).sectors, Math.ceil(max / ss));
+    const per = Math.max(1, CHUNK_BYTES / ss);
     const out = new Uint8Array(sectors * ss);
     for (let s = 0; s < sectors; s += per) {
       const n = Math.min(per, sectors - s);

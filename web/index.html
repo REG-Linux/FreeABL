@@ -70,7 +70,11 @@
         <p>Boot the device to EDL: from fastboot, <code>fastboot reboot</code>, let Android start, then
           <code>adb reboot edl</code>; or the device's EDL button combination. The screen stays black.</p>
         <button id="btn-backup" disabled>Connect in EDL and back up</button>
-        <p class="note">The backup downloads as <code>freeabl-backup-SERIAL.tar</code>. Keep it safe: it is the only way back to your stock bootloader.</p>
+        <p class="note">The backup downloads as <code>freeabl-backup-SERIAL-androidVERSION-PATCH.tar</code>. Keep it safe: it is the way back to
+          your stock bootloader on this Android build. After an Android update, the flasher makes you back up again: keep the newest one.</p>
+        <button id="btn-dump" disabled>Also save the whole firmware (recommended)</button>
+        <p class="note">Reads, never writes, every partition of both slots up to 128 MiB (bootloaders, boot, vbmeta…; not your data, not
+          <code>super</code>) into one file of a few hundred MB. It holds this device's own data: keep it private.</p>
         <pre id="report" class="report" hidden></pre>
       </li>
       <li>
@@ -93,17 +97,18 @@
 
   <section class="card tab" id="tab-update" hidden>
     <p>For a device that already runs FreeABL: its fastboot can write the bootloader. fastboot cannot read it back, so the copy is not verified.</p>
-    <label><span>Your backup (<code>freeabl-backup-SERIAL.tar</code>)</span><input type="file" id="update-backup" accept=".tar"></label>
+    <label><span>Your backup or firmware file (<code>freeabl-backup-…</code> or <code>freeabl-firmware-….tar</code>)</span><input type="file" id="update-backup" accept=".tar"></label>
     <button id="btn-update">Connect in fastboot mode and update</button>
   </section>
 
   <section class="card tab" id="tab-restore" hidden>
-    <label><span>Your backup (<code>freeabl-backup-SERIAL.tar</code>)</span><input type="file" id="restore-backup" accept=".tar"></label>
+    <label><span>Your backup or firmware file, made on the Android build the device runs now (<code>freeabl-backup-…</code> or <code>freeabl-firmware-….tar</code>)</span><input type="file" id="restore-backup" accept=".tar"></label>
     <div class="row">
       <button id="btn-restore-fb">Restore over fastboot</button>
       <button id="btn-restore-edl">Restore over EDL (device does not boot)</button>
     </div>
-    <p class="note">Over EDL the slot recorded in the backup is used; the device must not have changed slot since.</p>
+    <p class="note">Over EDL the slot recorded in the backup is used; the device must not have changed slot since. A backup from another
+      Android build is refused: its bootloader may not start the Android the device runs now.</p>
   </section>
 
   <section class="card tab" id="tab-drivers" hidden>
