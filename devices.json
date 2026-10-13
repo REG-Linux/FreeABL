@@ -1,5 +1,5 @@
 {
-  "_comment": "Device table shared by tools/freeabl-flash.py (embedded copy, checked by test/flash/test-flash.py) and web/. validated: current = this code on this device, earlier = an earlier build only. mbn = signature format of the stock and FreeABL ABL. msm_id = Sahara MSM ID seen on the device (null = not recorded). loader_hint_web: shown by the web page instead of loader_hint (the web page has no loader collection). android = Android builds FreeABL was run on, boot side as the flashers read it ({os_version, patch}); another one needs tester mode; empty = none recorded yet, not checked.",
+  "_comment": "Device table shared by tools/freeabl-flash.py (embedded copy, checked by test/flash/test-flash.py) and web/. validated: current = this code on this device, earlier = an earlier build only. mbn = signature format of the stock and FreeABL ABL. msm_id = Sahara MSM ID seen on the device (null = not recorded). loader_hint_web: shown by the web page instead of loader_hint (the web page has no loader collection). android = Android builds FreeABL was run on, boot side as the flashers read it ({os_version, patch, fingerprint}); another version or patch month needs tester mode, another build of the same month gets a note; empty = none recorded yet, not checked.",
   "soc_mbn": {
     "sdm845": 5,
     "sm6115": 6,
@@ -27,7 +27,13 @@
       "soc": "sm8550",
       "mbn": 7,
       "validated": "current",
-      "android": [],
+      "android": [
+        {
+          "os_version": "13",
+          "patch": "2024-01-01",
+          "fingerprint": "qti/qssi/qssi:13/TKQ1.231222.001/Odin2Portal01172242:user/release-keys"
+        }
+      ],
       "memory": "ufs",
       "msm_id": "0x2520e1",
       "loader": "xbl_s_devprg_ns.melf",
@@ -38,7 +44,13 @@
       "soc": "sm8550",
       "mbn": 7,
       "validated": "current",
-      "android": [],
+      "android": [
+        {
+          "os_version": "13",
+          "patch": "2023-06-05",
+          "fingerprint": "qti/qssi/qssi:13/TKQ1.230811.002/2840:user/release-keys"
+        }
+      ],
       "memory": "ufs",
       "msm_id": "0x2520e1",
       "loader": "xbl_s_devprg_ns.melf",

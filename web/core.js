@@ -210,12 +210,15 @@ export function sameBuild(a, b) {
 }
 
 const month = (p) => (p || '').slice(0, 7);
-/** listed: the device has validated Android versions in devices.json; ok: this one is among them. */
+/**
+ * listed: the device has validated Android versions in devices.json; ok: this
+ * version and patch month is among them; exact: this very build (fingerprint) too.
+ */
 export function androidValidated(dev, a) {
   const list = dev.android || [];
-  if (!list.length) return { listed: false, ok: false, list };
-  const ok = !!a?.patch && list.some((x) => String(x.os_version) === String(a.os_version) && month(x.patch) === month(a.patch));
-  return { listed: true, ok, list };
+  if (!list.length) return { listed: false, ok: false, exact: false, list };
+  const same = list.filter((x) => !!a?.patch && String(x.os_version) === String(a.os_version) && month(x.patch) === month(a.patch));
+  return { listed: true, ok: same.length > 0, exact: same.some((x) => x.fingerprint && x.fingerprint === a.fingerprint), list };
 }
 
 // --- devices ----------------------------------------------------------------
@@ -262,7 +265,7 @@ export async function checkImage(dev, name, bytes, sums, log) {
 export async function check(fb, table, log) {
   await fb.connect();
   const v = {};
-  for (const k of ['serialno', 'product', 'variant', 'unlocked', 'secure', 'current-slot', 'battery-voltage']) {
+  for (const k of ['serialno', 'product', 'variant', 'unlocked', 'secure', 'current-slot', 'battery-voltage', 'freeabl']) {
     v[k] = await fb.getVar(k).catch(() => null);
     log(`  ${k.padEnd(16)} ${v[k] || '-'}`);
   }
@@ -276,7 +279,9 @@ export async function check(fb, table, log) {
   if (mv && mv < table.min_battery_mv) stop(`battery at ${mv} mV: charge above ${table.min_battery_mv} mV first (the bootloader does not charge)`);
   if (!mv) log('note: battery level unknown: make sure the battery is above 50%');
   if (!v.serialno) stop('the device did not report its serial number');
-  return { serial: v.serialno, slot, product: v.product, variant: v.variant, time: new Date().toISOString() };
+  // FreeABL 0.2 and later says so; the bootloader running is the one on the active slot
+  if (v.freeabl === 'yes') log(`FreeABL is running: abl_${slot} holds FreeABL, not the stock bootloader`);
+  return { serial: v.serialno, slot, product: v.product, variant: v.variant, freeabl: v.freeabl === 'yes', time: new Date().toISOString() };
 }
 
 export async function edlConnect(edl, dev, loader, untested, log) {
@@ -296,8 +301,12 @@ const buildTag = (a) => {
   return patch ? `-android${os || ''}-${patch}` : '';
 };
 
-/** Reads abl_a and abl_b twice. Returns the backup archive and its description. */
-export async function backup(edl, dev, state, msmId, log) {
+/**
+ * Reads abl_a and abl_b twice. Returns the backup archive and its description.
+ * freeablImages: FreeABL images to recognise (the one chosen for the install):
+ * a slot that holds one is marked so, and never restored from this backup.
+ */
+export async function backup(edl, dev, state, msmId, log, { freeablImages = [] } = {}) {
   const info = { device: dev.id, soc: dev.soc, product: state.product || null, variant: state.variant || null,
                  serial: state.serial, slot: state.slot, msm_id: msmId === null ? null : `0x${msmId.toString(16)}`,
                  time: new Date().toISOString(), partitions: {} };
@@ -310,8 +319,15 @@ export async function backup(edl, dev, state, msmId, log) {
     if (!sameBytes(a, b)) stop(`${part}: two reads differ: check the cable and try again`);
     const v = mbnVersion(a);
     const h = await sha256hex(a);
-    info.partitions[part] = { sha256: h, mbn: v };
+    const freeabl = (s === state.slot && state.freeabl) || freeablImages.some((img) => img.length && startsWith(a, img));
+    if (freeabl && s === state.slot) {
+      stop(`${part}, the active slot, holds FreeABL: a backup now would keep FreeABL, not the stock bootloader. `
+           + 'Keep the backup you made before installing FreeABL; to put a new FreeABL build on, use Update. '
+           + 'After an Android update the device runs its new stock bootloader again and can be backed up.');
+    }
+    info.partitions[part] = freeabl ? { sha256: h, mbn: v, freeabl: true } : { sha256: h, mbn: v };
     files.push({ name: `${state.serial}/${part}.stock.img`, data: a });
+    if (freeabl) log(`${part} holds FreeABL (left from before an Android update?): it is kept in the file but never restored`);
     log(`${part}: ${v === 'empty' ? 'EMPTY (all zeros)' : v ? `signature v${v}` : 'NOT A SIGNED ABL'}  sha256 ${h.slice(0, 16)}...`);
   }
   const act = info.partitions[`abl_${state.slot}`].mbn;
@@ -349,10 +365,16 @@ export async function loadBackup(tar, dev, state) {
   return { info, parts };
 }
 
+/** true: written and read back; false: read back differs; throws when the USB transfer itself fails. */
 async function writeVerified(edl, part, bytes) {
   await edl.write(part, bytes);
   return startsWith(await edl.read(part), bytes);
 }
+
+// a write that stopped half way leaves the partition broken: say so plainly
+const DONT_REBOOT = 'Do NOT reboot the device: it stays in EDL. Reconnect it (same cable, a USB port on the computer itself) '
+                    + 'and use Back to stock over EDL with your backup.';
+const failed = (e) => String(e?.message || e);
 
 /** confirm(phrase, message) resolves to what the user typed. */
 export async function flash({ via, edl, fb, dev, state, bk, image, imageSha, untested, confirm, log }) {
@@ -367,7 +389,9 @@ export async function flash({ via, edl, fb, dev, state, bk, image, imageSha, unt
   const av = androidValidated(dev, android);
   let androidUntested = false;
   if (!av.listed) log(`note: no validated Android versions recorded for the ${dev.name}; this one is ${androidLabel(android)}`);
-  else if (!av.ok) {
+  else if (av.ok && !av.exact && android?.fingerprint) {
+    log(`note: this exact build (${android.fingerprint}) was not run on yet; FreeABL was on one with the same Android version and patch`);
+  } else if (!av.ok) {
     androidUntested = true;
     const was = av.list.map((x) => `Android ${x.os_version} ${month(x.patch)}`).join(', ');
     warn += `${warn ? '\n' : ''}WARNING: FreeABL was not run on ${androidLabel(android)} on the ${dev.name} (validated: ${was}). If Android does not start, FreeABL's menu and fastboot still do: use Back to stock over fastboot.`;
@@ -382,10 +406,23 @@ export async function flash({ via, edl, fb, dev, state, bk, image, imageSha, unt
   const typed = await confirm(phrase, `About to write the image (sha256 ${imageSha.slice(0, 16)}...) to ${part} of the ${dev.name} ${state.serial} via ${via}. Nothing else is written.${warn ? '\n' + warn : ''}`);
   if (typed !== phrase) stop('aborted');
   if (via === 'edl') {
-    if (await writeVerified(edl, part, image)) { log(`WRITE VERIFIED: ${part} holds FreeABL.`); return; }
-    log(`READBACK MISMATCH: restoring the stock ${part}`);
-    if (await writeVerified(edl, part, bk.parts[part])) stop(`stock ${part} restored and verified; FreeABL was not installed`);
-    stop(`stock ${part} restore NOT verified: do not reboot; retry the restore`);
+    let ok, why = 'the copy read back differs';
+    try {
+      ok = await writeVerified(edl, part, image);
+    } catch (e) {
+      ok = false;
+      why = `the write stopped: ${failed(e)}`;
+    }
+    if (ok) { log(`WRITE VERIFIED: ${part} holds FreeABL.`); return; }
+    log(`${why}: putting the stock ${part} back`);
+    let back = false;
+    try {
+      back = await writeVerified(edl, part, bk.parts[part]);
+    } catch (e) {
+      log(`stock write failed too: ${failed(e)}`);
+    }
+    if (back) stop(`${why}; stock ${part} restored and verified, FreeABL was not installed`);
+    stop(`${why}, and the stock ${part} could not be put back. ${DONT_REBOOT}`);
   }
   await fb.connect();
   const serial = await fb.getVar('serialno');
@@ -402,6 +439,7 @@ export async function flash({ via, edl, fb, dev, state, bk, image, imageSha, unt
 export async function restore({ via, edl, fb, state, bk, confirm, log }) {
   const part = `abl_${state.slot}`;
   const stock = bk.parts[part];
+  if (bk.info.partitions[part]?.freeabl) stop(`the backup's ${part} is FreeABL, not stock: use a backup made on this Android build before FreeABL was installed, or your vendor's firmware package`);
   if (['empty', null].includes(mbnVersion(stock))) stop(`the backup of ${part} is not a signed ABL: refusing to write it`);
   // a stock ABL from another Android build may not start this one
   if (via === 'fastboot') await fb.connect();
@@ -422,7 +460,13 @@ export async function restore({ via, edl, fb, state, bk, confirm, log }) {
   const typed = await confirm(phrase, `About to write the stock backup to ${part} of ${state.serial} via ${via}.${note}`);
   if (typed !== phrase) stop('aborted');
   if (via === 'edl') {
-    if (!(await writeVerified(edl, part, stock))) stop(`readback of ${part} does not match the backup: do not reboot; retry`);
+    let ok;
+    try {
+      ok = await writeVerified(edl, part, stock);
+    } catch (e) {
+      stop(`the write of ${part} stopped: ${failed(e)}. ${DONT_REBOOT}`);
+    }
+    if (!ok) stop(`readback of ${part} does not match the backup. ${DONT_REBOOT}`);
     log(`RESTORE VERIFIED: ${part} is stock again.`);
     return;
   }
@@ -450,7 +494,7 @@ export async function dumpPlan(edl, state) {
 }
 
 /** Reads the planned partitions into sink.write(bytes) as a tar; loadBackup() takes it like a backup. */
-export async function dump(edl, dev, state, msmId, plan, sink, log) {
+export async function dump(edl, dev, state, msmId, plan, sink, log, { freeablImages = [] } = {}) {
   const info = { device: dev.id, soc: dev.soc, product: state.product || null, variant: state.variant || null,
                  serial: state.serial, slot: state.slot, msm_id: msmId === null ? null : `0x${msmId.toString(16)}`,
                  time: new Date().toISOString(), android: plan.android, partitions: {}, firmware: {} };
@@ -464,7 +508,10 @@ export async function dump(edl, dev, state, msmId, plan, sink, log) {
     await sink.write(d);
     await sink.write(tarPad(d.length));
     info.firmware[p.name] = { lun: p.lun, start: Number(p.start), sectors: p.sectors, sha256: h };
-    if (/^abl_[ab]$/.test(p.name)) info.partitions[p.name] = { sha256: h, mbn: mbnVersion(d) };
+    if (/^abl_[ab]$/.test(p.name)) {
+      const freeabl = (p.name === `abl_${state.slot}` && state.freeabl) || freeablImages.some((img) => img.length && startsWith(d, img));
+      info.partitions[p.name] = freeabl ? { sha256: h, mbn: mbnVersion(d), freeabl: true } : { sha256: h, mbn: mbnVersion(d) };
+    }
     sums.push(`${h}  firmware/${p.name}.img\n`);
     done += d.length;
     log(`  ${p.name.padEnd(20)} ${String(Math.round(d.length / 1024)).padStart(7)} KiB  ${Math.round((100 * done) / plan.bytes)}%`, true);

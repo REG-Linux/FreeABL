@@ -103,7 +103,8 @@ async function doBackup() {
   const dev = selection();
   log('== Backup');
   const s = await edlSession(dev);
-  made = await core.backup(s.driver, dev, state, s.msmId, log);
+  const chosen = await readFile($('image'));   // to recognise FreeABL on a slot
+  made = await core.backup(s.driver, dev, state, s.msmId, log, { freeablImages: chosen ? [chosen] : [] });
   download(made.tar, made.tarName);
   log(`Backup verified and downloaded as ${made.tarName}. Now select that file below.`);
   $('report').hidden = !made.report;
@@ -117,6 +118,8 @@ async function saveTo(name) {
     const w = await h.createWritable();
     return { write: (c) => w.write(c), close: () => w.close(), abort: () => w.abort() };
   }
+  // without it the whole file (GBs) would sit in memory: Chrome on Android, for one
+  if (!SIM) throw new core.Stop('this browser cannot write a large file as it goes: save the firmware with Chrome or Edge on a computer, or with the command-line tool (freeabl-flash.py dump)');
   const chunks = [];
   return { write: async (c) => { chunks.push(c.slice()); }, close: async () => download(new Blob(chunks), name), abort: async () => {} };
 }
@@ -131,7 +134,8 @@ async function doDump() {
     const s = await edlSession(dev);
     const plan = await core.dumpPlan(s.driver, state);
     log(`${plan.parts.length} partitions, ${Math.round(plan.bytes / (1 << 20))} MiB, ${core.androidLabel(plan.android)}. Left out: ${plan.skipped.join(', ') || 'none'}`);
-    await core.dump(s.driver, dev, state, s.msmId, plan, sink, log);
+    const chosen = await readFile($('image'));
+    await core.dump(s.driver, dev, state, s.msmId, plan, sink, log, { freeablImages: chosen ? [chosen] : [] });
     await sink.close();
   } catch (e) {
     await sink.abort().catch(() => {});

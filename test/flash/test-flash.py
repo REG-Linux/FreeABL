@@ -34,15 +34,16 @@ def vbmeta_image(props, size=64 * 1024):
     return (bytes(h) + descs).ljust(size, b'\0')
 
 
-def build(os_v='13', patch='2024-05-05', gki=False):
+def build(os_v='13', patch='2023-06-05', gki=False):
     """vbmeta and vbmeta_system of an Android build, as in web/sim.js."""
     b = 'init_boot' if gki else 'boot'
     return (vbmeta_image({f'com.android.build.{b}.os_version': os_v, f'com.android.build.{b}.security_patch': patch}),
             vbmeta_image({'com.android.build.system.os_version': os_v, 'com.android.build.system.security_patch': patch,
-                          'com.android.build.system.fingerprint': f'AYN/kalama/kalama:{os_v}/TKQ1/eng:user/release-keys'}))
+                          'com.android.build.system.fingerprint': 'qti/qssi/qssi:13/TKQ1.230811.002/2840:user/release-keys' if (os_v, patch) == ('13', '2023-06-05')
+                          else f'AYN/kalama/kalama:{os_v}/TKQ1/eng:user/release-keys'}))
 
 
-def boot_header(os_v='13', patch='2024-05'):
+def boot_header(os_v='13', patch='2023-06'):
     a, b, c = (list(map(int, os_v.split('.'))) + [0, 0])[:3]
     y, m = map(int, patch.split('-')[:2])
     h = bytearray(4096)
@@ -78,7 +79,7 @@ class Dev:
         if b is not None:
             vb, sysvb = build(**b)
             for name, data in ((f'vbmeta_{slot}', vb), (f'vbmeta_system_{slot}', sysvb),
-                               (f'boot_{slot}', boot_header(b.get('os_v', '13'), b.get('patch', '2024-05')))):
+                               (f'boot_{slot}', boot_header(b.get('os_v', '13'), b.get('patch', '2023-06')))):
                 open(os.path.join(self.dir, name), 'wb').write(data)
                 parts.append(name)
         self.vars['parts'] = parts
@@ -122,7 +123,7 @@ L = lambda d: ('-l', d.loader)
 d = Dev(STOCK7, EMPTY)
 rc, out = d.run('check'); check('check: unlocked device accepted', rc == 0, out)
 rc, out = d.run('backup', '-d', 'pockets', *L(d)); check('backup: ok, abl_b empty', rc == 0 and 'EMPTY' in out, out)
-bk = os.path.join(d.backups, 'TEST1234', 'android13-2024-05-05-' + hashlib.sha256(d.part('vbmeta_a')).hexdigest()[:8])
+bk = os.path.join(d.backups, 'TEST1234', 'android13-2023-06-05-' + hashlib.sha256(d.part('vbmeta_a')).hexdigest()[:8])
 check('backup: in the folder of its Android build', os.path.isfile(os.path.join(bk, 'backup.json')), str(os.listdir(os.path.dirname(bk))))
 check('backup: stock abl_a saved', open(os.path.join(bk, 'abl_a.stock.img'), 'rb').read() == d.part('abl_a'))
 img = d.image(FREE7)
@@ -194,7 +195,7 @@ d.run('check'); d.run('backup', '-d', 'pockets', *L(d))
 d.vars['corrupt'] = True
 json.dump(d.vars, open(os.path.join(d.dir, 'vars.json'), 'w'))
 rc, out = d.run('flash', '-d', 'pockets', *L(d), '-i', d.image(FREE7), stdin='FLASH-ABL_A\n')
-check('flash: readback mismatch detected, not reported as success', rc != 0 and 'MISMATCH' in out, out)
+check('flash: readback mismatch detected, not reported as success', rc != 0 and 'read back differs' in out and 'Do NOT reboot' in out, out)
 shutil.rmtree(d.dir)
 
 # 8. slot b active: flash goes to abl_b only
@@ -271,9 +272,9 @@ def bjson(d):
 d = Dev(STOCK7, STOCK7)
 d.run('check')
 rc, out = d.run('backup', '-d', 'pockets', *L(d))
-check('backup: Android build shown', rc == 0 and 'slot a: Android 13, security patch 2024-05-05' in out, out)
+check('backup: Android build shown', rc == 0 and 'slot a: Android 13, security patch 2023-06-05' in out, out)
 (name, info), = bjson(d).items()
-check('backup: build recorded', info['android']['patch'] == '2024-05-05' and info['android']['vbmeta_sha256'] == hashlib.sha256(d.part('vbmeta_a')).hexdigest(), str(info))
+check('backup: build recorded', info['android']['patch'] == '2023-06-05' and info['android']['vbmeta_sha256'] == hashlib.sha256(d.part('vbmeta_a')).hexdigest(), str(info))
 img = d.image(FREE7)
 d.run('flash', '-d', 'pockets', *L(d), '-i', img, stdin='FLASH-ABL_A\n')
 d.update('a', dict(patch='2025-02-05'))        # two Android updates later, back on slot a
@@ -311,12 +312,46 @@ d = Dev(STOCK7, STOCK7)
 open(os.path.join(d.dir, 'vbmeta_a'), 'wb').write(vbmeta_image({}))
 d.run('check'); rc, out = d.run('backup', '-d', 'pockets', *L(d))
 a = list(bjson(d).values())[0]['android']
-check('build: boot header when vbmeta has no version', a['os_version'] == '13' and a['patch'] == '2024-05', str(a))
+check('build: boot header when vbmeta has no version', a['os_version'] == '13' and a['patch'] == '2023-06', str(a))
 check('build: header read with edl rs on the right sector', 'edl rs ' in open(os.path.join(d.dir, 'calls.log')).read())
 shutil.rmtree(d.dir)
 d = Dev(STOCK7, STOCK7, android=(None, None))
 d.run('check'); rc, out = d.run('backup', '-d', 'pockets', *L(d))
 check('build: none on an older Android, backup still made', rc == 0 and 'android-unknown' in bjson(d) and 'Android version not known' in out, out)
+shutil.rmtree(d.dir)
+
+# 15. FreeABL already on a slot; writes that stop half way
+d = Dev(FREE7, STOCK7, freeabl='yes')
+d.run('check')
+rc, out = d.run('backup', '-d', 'pockets', *L(d))
+check('backup refused while FreeABL runs on the active slot', rc != 0 and 'active slot, holds FreeABL' in out, out)
+shutil.rmtree(d.dir)
+d = Dev(STOCK7, STOCK7)
+d.run('check'); d.run('backup', '-d', 'pockets', *L(d))
+img = d.image(FREE7)
+rc, out = d.run('flash', '-d', 'pockets', *L(d), '-i', img, stdin='FLASH-ABL_A\n')
+check('flash remembers the image', rc == 0 and os.path.isfile(os.path.join(d.backups, 'freeabl-images.json')), out)
+os.remove(img); os.remove(img + '.sha256')
+d.vars['current-slot'] = 'b'
+d.update('b', dict(patch='2025-02-05'))      # an Android update to slot b, FreeABL left on abl_a
+d.run('check')
+rc, out = d.run('backup', '-d', 'pockets', *L(d))
+new = [i for i in bjson(d).values() if i['slot'] == 'b']
+check('after an update: FreeABL on the other slot recognised and marked', rc == 0 and 'abl_a holds FreeABL' in out
+      and new and new[0]['partitions']['abl_a'].get('freeabl') and not new[0]['partitions']['abl_b'].get('freeabl'), out)
+shutil.rmtree(d.dir)
+d = Dev(STOCK7, STOCK7, fail_writes=1)
+d.run('check'); d.run('backup', '-d', 'pockets', *L(d))
+img = d.image(FREE7)
+rc, out = d.run('flash', '-d', 'pockets', *L(d), '-i', img, stdin='FLASH-ABL_A\n')
+check('write stopped half way: stock put back', rc != 0 and 'the write stopped; stock abl_a restored and verified' in out
+      and d.part('abl_a')[:len(STOCK7)] == STOCK7, out)
+v = json.load(open(os.path.join(d.dir, 'vars.json'))); v['fail_writes'] = 2; json.dump(v, open(os.path.join(d.dir, 'vars.json'), 'w'))
+rc, out = d.run('flash', '-d', 'pockets', *L(d), '-i', img, stdin='FLASH-ABL_A\n')
+check('write and stock write stopped: told not to reboot', rc != 0 and 'could not be put back. Do NOT reboot' in out, out)
+v['fail_writes'] = 0; json.dump(v, open(os.path.join(d.dir, 'vars.json'), 'w'))
+rc, out = d.run('restore', '-d', 'pockets', *L(d), stdin='RESTORE-ABL_A\n')
+check('then restore over EDL works', rc == 0 and d.part('abl_a')[:len(STOCK7)] == STOCK7, out)
 shutil.rmtree(d.dir)
 
 # 14. firmware dump: read only, big partitions left out
@@ -345,14 +380,16 @@ check('devices.json matches the tool', {k: {kk: v[kk] for kk in emb.get(k, {})} 
       and dj['min_battery_mv'] == ff.MIN_MV)
 
 # Android builds FreeABL was validated on
-dv = dict(ff.DEVICES['pockets'], android=[dict(os_version='13', patch='2024-05-05')])
-check('validated builds: same month passes, another needs --untested',
-      ff.android_validated(dv, dict(os_version='13', patch='2024-05-01')) == (True, True)
-      and ff.android_validated(dv, dict(os_version='14', patch='2025-01-05')) == (True, False)
-      and ff.android_validated(dv, None) == (True, False)
-      and ff.android_validated(ff.DEVICES['pockets'], None) == (False, False))
+dv = dict(ff.DEVICES['pockets'], android=[dict(os_version='13', patch='2023-06-05')])
+fp = ff.DEVICES['pockets']['android'][0]['fingerprint']
+check('validated builds: same month passes, another needs --untested, the exact build is told apart',
+      ff.android_validated(dv, dict(os_version='13', patch='2023-06-01')) == (True, True, False)
+      and ff.android_validated(ff.DEVICES['pockets'], dict(os_version='13', patch='2023-06-05', fingerprint=fp)) == (True, True, True)
+      and ff.android_validated(dv, dict(os_version='14', patch='2025-01-05')) == (True, False, False)
+      and ff.android_validated(dv, None) == (True, False, False)
+      and ff.android_validated(dict(ff.DEVICES['odin'], android=[]), None) == (False, False, False))
 # same parser as the web page, on the same bytes
-pv = build(patch='2024-05-05')[0]
+pv = build(patch='2023-06-05')[0]
 check('vbmeta properties: Python and web agree', ff.avb_props(pv) == json.loads(subprocess.run(
     ['node', '-e', 'import("./web/core.js").then(c=>{let b=[];process.stdin.on("data",d=>b.push(d)).on("end",()=>console.log(JSON.stringify(c.avbProps(new Uint8Array(Buffer.concat(b))))))})'],
     input=pv, capture_output=True, cwd=os.path.join(HERE, '..', '..')).stdout or b'null'))

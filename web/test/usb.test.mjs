@@ -154,12 +154,12 @@ test('device held by another program: says what to close', async () => {
 });
 
 test('partition list, Android build and firmware dump through the real driver; large transfers', async () => {
-  const ph = attach(new FakePhone({ stockA: STOCK7, stockB: STOCK7, android: { a: { patch: '2024-05-05' }, b: { patch: '2023-11-05' } } }).plug('edl'));
+  const ph = attach(new FakePhone({ stockA: STOCK7, stockB: STOCK7, android: { a: { patch: '2023-06-05' }, b: { patch: '2023-11-05' } } }).plug('edl'));
   const edl = usb.edlDriver(quiet);
   await edl.connect(ph.loader, 'ufs');
   const names = (await edl.partitions()).map((p) => p.name);
   for (const n of ['userdata', 'xbl_a', 'xbl_b', 'abl_a', 'abl_b', 'vbmeta_a', 'boot_b']) assert.ok(names.includes(n), n);
-  assert.equal((await core.androidBuild(edl, 'a')).patch, '2024-05-05');
+  assert.equal((await core.androidBuild(edl, 'a')).patch, '2023-06-05');
   assert.equal((await core.androidBuild(edl, 'b')).patch, '2023-11-05');
   assert.equal((await edl.read('vbmeta_a', 4096)).length, 4096);
   const before = ph.transfersIn;
@@ -175,7 +175,7 @@ test('partition list, Android build and firmware dump through the real driver; l
   assert.ok(ph.firehoseCmds.every((c) => allowed.has(c)), ph.firehoseCmds.join());
   const bk = await core.loadBackup(new Blob(chunks), dev, state);
   assert.ok(startsWith(bk.parts.abl_b, STOCK7));
-  assert.equal(bk.info.android.patch, '2024-05-05');
+  assert.equal(bk.info.android.patch, '2023-06-05');
 });
 
 // --- the page's steps (core.js) with the real drivers -------------------------
@@ -238,7 +238,7 @@ test('write that does not read back: stock put back, FreeABL not installed', asy
   const ph = new FakePhone({ stockA: STOCK7 });
   const x = await install(ph, 'pockets', STOCK7, FREE7);
   ph.corrupt = true;
-  await assert.rejects(core.flash(x.args), /NOT verified/);
+  await assert.rejects(core.flash(x.args), /could not be put back. Do NOT reboot/);
   ph.corrupt = false;
   await core.restore({ via: 'edl', edl: x.edl, state: x.state, bk: x.bk, confirm: typing('RESTORE-ABL_A'), log: quiet });
   assert.ok(startsWith(ph.part('abl_a'), STOCK7));

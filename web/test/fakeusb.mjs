@@ -403,7 +403,7 @@ export class FakePhone {
         const pr = buildProps(android[sl]);
         this.part(`vbmeta_${sl}`).set(vbmetaImage(pr.vbmeta));
         this.part(`vbmeta_system_${sl}`).set(vbmetaImage(pr.system));
-        this.part(`boot_${sl}`).set(bootHeader('13', '2024-05'));
+        this.part(`boot_${sl}`).set(bootHeader('13', '2023-06'));
       }
       // LUN 5 absent: reads are refused
     }

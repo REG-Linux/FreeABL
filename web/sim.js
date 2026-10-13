@@ -44,17 +44,19 @@ export function vbmetaImage(props, size = 64 * 1024) {
  * Properties of an Android build as AOSP writes them into vbmeta and vbmeta_system.
  * gki: the boot side is init_boot (Pocket S); system: a newer system over the vendor's Android (Pocket Max).
  */
-export function buildProps({ os = '13', patch = '2024-05-05', gki = false, system = null } = {}) {
+export function buildProps({ os = '13', patch = '2023-06-05', gki = false, system = null } = {}) {
   const boot = gki ? 'init_boot' : 'boot';
   const sys = system || { os, patch };
   return { vbmeta: { [`com.android.build.${boot}.os_version`]: os, [`com.android.build.${boot}.security_patch`]: patch,
                      'com.android.build.vendor.os_version': os, 'com.android.build.vendor.security_patch': patch },
            system: { 'com.android.build.system.os_version': sys.os, 'com.android.build.system.security_patch': sys.patch,
-                     'com.android.build.system.fingerprint': `AYN/kalama/kalama:${sys.os}/TKQ1.${sys.patch}/eng:user/release-keys` } };
+                     // the Pocket S build FreeABL was validated on, for the defaults
+                     'com.android.build.system.fingerprint': sys.os === '13' && sys.patch === '2023-06-05'
+                       ? 'qti/qssi/qssi:13/TKQ1.230811.002/2840:user/release-keys' : `AYN/kalama/kalama:${sys.os}/TKQ1.${sys.patch}/eng:user/release-keys` } };
 }
 
 /** A boot image v4 header page with os_version (A.B.C) and patch (YYYY-MM). */
-export function bootHeader(os = '13', patch = '2024-05') {
+export function bootHeader(os = '13', patch = '2023-06') {
   const h = new Uint8Array(4096), v = new DataView(h.buffer);
   h.set(new TextEncoder().encode('ANDROID!'));
   const [a = 0, b = 0, c = 0] = os.split('.').map(Number), [y, m] = patch.split('-').map(Number);
@@ -90,7 +92,7 @@ export class SimDevice {
     const pr = buildProps(build);
     this.parts[`vbmeta_${slot}`] = vbmetaImage(pr.vbmeta);
     this.parts[`vbmeta_system_${slot}`] = vbmetaImage(pr.system);
-    this.parts[`boot_${slot}`] = bootHeader(build?.os, (build?.patch || '2024-05-05').slice(0, 7));
+    this.parts[`boot_${slot}`] = bootHeader(build?.os, (build?.patch || '2023-06-05').slice(0, 7));
   }
 
   partitions() {
@@ -132,7 +134,14 @@ export class SimDevice {
         if (!this.parts[part]) throw new Error(`EDL: partition ${part} not found`);
         return this.parts[part].slice(0, Math.min(this.parts[part].length, Math.ceil(max / 4096) * 4096));
       },
-      write: async (part, bytes) => this.write(part, bytes, this.corrupt),
+      write: async (part, bytes) => {
+        if (this.failWrites > 0) {   // the USB transfer dies half way
+          this.failWrites--;
+          this.parts[part].set(bytes.subarray(0, bytes.length >> 1));
+          throw new Error('NetworkError: A transfer error has occurred.');
+        }
+        this.write(part, bytes, this.corrupt);
+      },
       reset: async () => { this.edlLoaded = false; },
     };
   }

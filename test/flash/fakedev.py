@@ -3,7 +3,8 @@
 """Fake `fastboot` and `edl` for test-flash.py: one simulated device in $FAKEDEV.
 
 $FAKEDEV/vars.json  fastboot variables, plus "critical": refuse fastboot flash of abl,
-                    "msm": EDL MSM ID, "corrupt": flip a byte on every EDL write,
+                    "msm": EDL MSM ID, "corrupt": flip a byte on every EDL write, "fail_writes": that
+                    many EDL writes stop half way,
                     "parts": the partitions on LUN 4, in order (userdata on LUN 0 is listed, never read)
 $FAKEDEV/<part>     partition contents
 """
@@ -79,6 +80,15 @@ elif cmd == 'rs':
     open(path, 'wb').write(open(part(n), 'rb').read()[start - o:start - o + count].ljust(count, b'\0'))
     print(f"Dumped sector {args[1]} with sector count {args[2]} as {path}.")
 elif cmd == 'w':
+    if V.get('fail_writes'):        # the USB transfer dies half way
+        V['fail_writes'] -= 1
+        json.dump(V, open(os.path.join(D, 'vars.json'), 'w'))
+        data = bytearray(open(part(args[1]), 'rb').read())
+        new = open(args[2], 'rb').read()
+        data[:len(new) // 2] = new[:len(new) // 2]
+        open(part(args[1]), 'wb').write(bytes(data))
+        print("Error: USB write failed")
+        sys.exit(1)
     write(args[1], args[2], V.get('corrupt'))
     print(f"Wrote {args[2]} to sector 0.")
 elif cmd == 'reset':

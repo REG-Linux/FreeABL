@@ -117,8 +117,9 @@ instead of `./tools/freeabl-flash.py ...`.
    ```
 
    It goes to `firmware/` in the same folder: up to a few GB (1.5 GB on an
-   Odin 2 Portal). It holds this
-   device's own data: keep it private.
+   Odin 2 Portal). It holds this device's own data: keep it private. The web
+   page saves it only where the browser can write a file as it goes (Chrome or
+   Edge on a computer).
 
 3. **Flash.** Still in EDL:
 
@@ -161,9 +162,16 @@ An Android update installs the other slot, with a new stock bootloader, and
 switches to it. FreeABL stays on the old slot, unused: Android starts as stock.
 To get FreeABL back, run the steps again (`check`, `backup`, `flash`). The new
 backup goes to a new folder, for the new Android build; keep the older ones.
+FreeABL left on the old slot is recognised and marked in the new backup, and
+never restored.
 
-If an update refuses to install, put the stock bootloader back first (below),
-update, then install FreeABL again.
+- After an update Android may ask again to allow USB debugging: accept it on
+  the device, or `adb reboot edl` does not work.
+- If an update refuses to install, put the stock bootloader back first (below),
+  update, then install FreeABL again.
+- A backup is refused while FreeABL runs on the active slot: it would save
+  FreeABL, not the stock bootloader. Keep the backup from before the first
+  install; to change FreeABL builds, use the update steps above.
 
 The flashers check the Android build:
 
@@ -177,6 +185,10 @@ The flashers check the Android build:
   device in `devices.json`. If Android then does not start, FreeABL's menu and
   fastboot still do: go back to stock over fastboot.
 - **Secure boot:** both flashers stop if `fastboot getvar secure` is not `no`.
+- **A write that stops half way** (cable, hub, computer asleep): the flashers
+  put the stock bootloader back. If that fails too they say so: **do not
+  reboot**. The device stays in EDL; reconnect it, ideally to a USB port of the
+  computer itself, and go back to stock over EDL.
 
 ## Going back to stock
 

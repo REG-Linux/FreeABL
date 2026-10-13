@@ -37,11 +37,15 @@ DEVICES = {
     'odin': dict(name='AYN Odin', soc='sdm845', mbn=5, validated='current', android=[],
                  memory='ufs', msm_id=0x08b0e1, loader=None,
                  loader_hint='auto-selected by the edl tool (its Loaders/ directory)'),
-    'odin2portal': dict(name='AYN Odin 2 Portal', soc='sm8550', mbn=7, validated='current', android=[],
+    'odin2portal': dict(name='AYN Odin 2 Portal', soc='sm8550', mbn=7, validated='current',
+                        android=[dict(os_version='13', patch='2024-01-01',
+                                      fingerprint='qti/qssi/qssi:13/TKQ1.231222.001/Odin2Portal01172242:user/release-keys')],
                         memory='ufs', msm_id=0x2520e1, loader='xbl_s_devprg_ns.melf',
                         loader_hint='xbl_s_devprg_ns.melf from the AYANEO Pocket S firmware '
                                     'package (works on this device)'),
-    'pockets': dict(name='AYANEO Pocket S', soc='sm8550', mbn=7, validated='current', android=[],
+    'pockets': dict(name='AYANEO Pocket S', soc='sm8550', mbn=7, validated='current',
+                    android=[dict(os_version='13', patch='2023-06-05',
+                                  fingerprint='qti/qssi/qssi:13/TKQ1.230811.002/2840:user/release-keys')],
                     memory='ufs', msm_id=0x2520e1, loader='xbl_s_devprg_ns.melf',
                     loader_hint='xbl_s_devprg_ns.melf from the AYANEO Pocket S firmware package'),
     'pocketmax': dict(name='Mangmi Pocket Max', soc='sm8250', mbn=6, validated='earlier', android=[],
@@ -169,12 +173,55 @@ def edl_read(dev, loader, part, path):
 
 
 def edl_write_verified(dev, loader, part, img, workdir):
-    """Write img to part, read it back, compare the image bytes."""
-    edl_ok(dev, loader, 'w', part, img, what=f'write of {part}')
-    rb = os.path.join(workdir, f'{part}.readback.img')
-    edl_read(dev, loader, part, rb)
+    """Write img to part, read it back, compare the image bytes. True or False;
+    None when the edl tool itself failed (the write may have stopped half way)."""
+    try:
+        edl_ok(dev, loader, 'w', part, img, what=f'write of {part}')
+        rb = os.path.join(workdir, f'{part}.readback.img')
+        edl_read(dev, loader, part, rb)
+    except SystemExit as e:
+        print(e, file=sys.stderr)
+        return None
     a = open(img, 'rb').read()
     return open(rb, 'rb').read()[:len(a)] == a
+
+
+# a write that stopped half way leaves the partition broken: say so plainly
+DONT_REBOOT = ("Do NOT reboot the device: it stays in EDL. Reconnect it (same cable, a USB port on the "
+               "computer itself) and run 'restore' with --via edl.")
+
+
+def freeabl_images(args):
+    """FreeABL images this tool flashed or can see (out/, the current folder): [(length, sha256)]."""
+    seen = []
+    try:
+        seen = [tuple(x) for x in json.load(open(os.path.join(backup_root(args), 'freeabl-images.json')))]
+    except (OSError, ValueError):
+        pass
+    for d in (os.getcwd(), os.path.join(ROOT, 'out')):
+        for f in (os.listdir(d) if os.path.isdir(d) else []):
+            if re.fullmatch(r'abl_signed-.*-ESP-r34\.elf', f):
+                b = open(os.path.join(d, f), 'rb').read()
+                seen.append((len(b), hashlib.sha256(b).hexdigest()))
+    return seen
+
+
+def remember_image(args, img):
+    """Keep the length and sha256 of an image this tool flashed, to recognise it on a slot later."""
+    p = os.path.join(backup_root(args), 'freeabl-images.json')
+    b = open(img, 'rb').read()
+    entry = [len(b), hashlib.sha256(b).hexdigest()]
+    try:
+        seen = json.load(open(p))
+    except (OSError, ValueError):
+        seen = []
+    if entry not in seen:
+        json.dump(seen + [entry], open(p, 'w'))
+
+
+def holds_freeabl(path, images):
+    d = open(path, 'rb').read()
+    return any(n <= len(d) and hashlib.sha256(d[:n]).hexdigest() == h for n, h in images)
 
 
 def edl_read_many(dev, loader, parts, paths):
@@ -319,13 +366,14 @@ def same_build(a, b):
 
 
 def android_validated(dev, a):
-    """(listed, ok): the device has validated builds recorded; this one is among them (same month)."""
+    """(listed, ok, exact): the device has validated builds recorded; this version and patch
+    month is among them; this very build (fingerprint) too."""
     lst = dev.get('android') or []
     if not lst:
-        return False, False
-    ok = bool(a and a.get('patch')) and any(str(x['os_version']) == str(a.get('os_version'))
-                                            and x['patch'][:7] == a['patch'][:7] for x in lst)
-    return True, ok
+        return False, False, False
+    same = [x for x in lst if a and a.get('patch') and str(x['os_version']) == str(a.get('os_version'))
+            and x['patch'][:7] == a['patch'][:7]]
+    return True, bool(same), any(x.get('fingerprint') and x['fingerprint'] == a.get('fingerprint') for x in same)
 
 
 def build_dir_name(a):
@@ -451,7 +499,7 @@ def cmd_devices(args):
 def cmd_check(args):
     serial = fb_one_device()
     v = {k: fb_getvar(k) for k in ('product', 'variant', 'unlocked', 'secure', 'current-slot',
-                                   'battery-voltage', 'battery-soc-ok')}
+                                   'battery-voltage', 'battery-soc-ok', 'freeabl')}
     for k, x in v.items():
         print(f"  {k:<16} {x if x not in (None, '') else '-'}")
     if v['unlocked'] != 'yes':
@@ -474,8 +522,11 @@ def cmd_check(args):
     if not mv:
         print("note: battery level unknown: make sure the battery is above 50%")
     os.makedirs(backup_root(args), exist_ok=True)
+    # FreeABL 0.2 and later says so; the bootloader running is the one on the active slot
+    if v['freeabl'] == 'yes':
+        print(f"FreeABL is running: abl_{slot} holds FreeABL, not the stock bootloader")
     st = dict(serial=serial, slot=slot, msm_id=None, product=v['product'], variant=v['variant'],
-              time=time.strftime('%Y-%m-%d %H:%M:%S'))
+              freeabl=v['freeabl'] == 'yes', time=time.strftime('%Y-%m-%d %H:%M:%S'))
     json.dump(st, open(state_path(args), 'w'), indent=1)
     print(f"\nOK: device {serial}, active slot {slot}. Saved to {state_path(args)}.")
     print("Next: boot the device to EDL (see FLASHING.md), then run 'backup -d <device>'.")
@@ -512,6 +563,7 @@ def cmd_backup(args):
     info = dict(device=args.device, soc=dev['soc'], product=st.get('product'), variant=st.get('variant'), serial=st['serial'], slot=st['slot'],
                 msm_id=None if msm is None else f'0x{msm:x}', time=time.strftime('%Y-%m-%d %H:%M:%S'),
                 android=android, partitions={})
+    images = freeabl_images(args)
     for s in SLOTS:
         part = f'abl_{s}'
         p1 = os.path.join(dd, f'{part}.stock.img')
@@ -527,7 +579,16 @@ def cmd_backup(args):
                 f"flashed this is expected; otherwise read again (--allow-changed keeps the old backup)")
         os.remove(p2)
         v = mbn_version(p1)
-        info['partitions'][part] = dict(sha256=sha256(p1), mbn=v)
+        freeabl = (s == st['slot'] and st.get('freeabl')) or holds_freeabl(p1, images)
+        if freeabl and s == st['slot']:
+            os.remove(p1)
+            die(f"{part}, the active slot, holds FreeABL: a backup now would keep FreeABL, not the stock "
+                "bootloader. Keep the backup you made before installing FreeABL; to put a new FreeABL build "
+                "on, use 'flash --via fastboot'. After an Android update the device runs its new stock "
+                "bootloader again and can be backed up.")
+        info['partitions'][part] = dict(sha256=sha256(p1), mbn=v, **({'freeabl': True} if freeabl else {}))
+        if freeabl:
+            print(f"{part} holds FreeABL (left from before an Android update?): kept, never restored")
         print(f"{part}: {'EMPTY (all zeros)' if v == 'empty' else f'signature v{v}' if v else 'NOT A SIGNED ABL'}"
               f"  sha256 {sha256(p1)[:16]}...")
     act = info['partitions'][f"abl_{st['slot']}"]['mbn']
@@ -631,9 +692,12 @@ def cmd_flash(args):
                 f"EDL without Android (button combination or test point) and your backup to recover.")
     # the Android build: read over EDL at the backup, or from FreeABL's fastboot
     android = fba or info.get('android')
-    listed, ok = android_validated(dev, android)
+    listed, ok, exact = android_validated(dev, android)
     if not listed:
         print(f"note: no validated Android versions recorded for the {dev['name']}; this one is {android_label(android)}")
+    elif ok and not exact and android.get('fingerprint'):
+        print(f"note: this exact build ({android['fingerprint']}) was not run on yet; FreeABL was on one "
+              "with the same Android version and patch")
     elif not ok:
         was = ', '.join(f"Android {x['os_version']} {x['patch'][:7]}" for x in dev['android'])
         warn += (f"\nWARNING: FreeABL was not run on {android_label(android)} on the {dev['name']} (validated: {was}). "
@@ -649,13 +713,16 @@ def cmd_flash(args):
     if args.via == 'edl':
         if dev['loader'] and not args.loader:
             die(f"--loader PATH needed ({dev['loader_hint']})")
-        if edl_write_verified(dev, args.loader, part, img, dd):
+        ok = edl_write_verified(dev, args.loader, part, img, dd)
+        if ok:
+            remember_image(args, img)
             print(f"\nWRITE VERIFIED: {part} holds FreeABL.")
         else:
-            print(f"\nREADBACK MISMATCH: restoring the stock {part}")
+            why = 'the copy read back differs' if ok is False else 'the write stopped'
+            print(f"\n{why}: putting the stock {part} back")
             if edl_write_verified(dev, args.loader, part, stock, dd):
-                die(f"stock {part} restored and verified; FreeABL was not installed")
-            die(f"stock {part} restore NOT verified: do not reboot; retry 'restore'")
+                die(f"{why}; stock {part} restored and verified, FreeABL was not installed")
+            die(f"{why}, and the stock {part} could not be put back. {DONT_REBOOT}")
         print(f"Next: 'reset -d {args.device}' (or hold Power) to boot FreeABL.")
     else:
         rc, out = fb_run('flash', part, img, timeout=120)
@@ -665,6 +732,7 @@ def cmd_flash(args):
                 die("the stock bootloader refuses to write abl (critical partition). "
                     "Use --via edl (no data loss), see FLASHING.md")
             die("fastboot flash failed")
+        remember_image(args, img)
         print(f"\nFLASHED {part}. fastboot cannot read it back; reboot with 'fastboot reboot'.")
 
 
@@ -683,6 +751,9 @@ def cmd_restore(args):
     part = f"abl_{st['slot']}"
     if mbn_version(stock) in ('empty', None):
         die(f"the backup of {part} is not a signed ABL: refusing to write it")
+    if info['partitions'][part].get('freeabl'):
+        die(f"the backup's {part} is FreeABL, not stock: use a backup made on this Android build before "
+            "FreeABL was installed, or your vendor's firmware package")
     note = ''
     if same is None:
         note = ("\nNote: this backup does not record its Android build (made by an earlier version of this tool): not checked."
@@ -694,8 +765,11 @@ def cmd_restore(args):
     confirm(f"RESTORE-{part.upper()}",
             f"\nAbout to write the stock backup to {part} of {st['serial']} via {args.via}.{note}")
     if args.via == 'edl':
-        if not edl_write_verified(dev, args.loader, part, stock, dd):
-            die(f"readback of {part} does not match the backup: do not reboot; retry")
+        ok = edl_write_verified(dev, args.loader, part, stock, dd)
+        if ok is None:
+            die(f"the write of {part} stopped. {DONT_REBOOT}")
+        if not ok:
+            die(f"readback of {part} does not match the backup. {DONT_REBOOT}")
         print(f"\nRESTORE VERIFIED: {part} is stock again.")
     else:
         rc, out = fb_run('flash', part, stock, timeout=120)
