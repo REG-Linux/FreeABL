@@ -116,7 +116,8 @@ instead of `./tools/freeabl-flash.py ...`.
    ./tools/freeabl-flash.py dump -d pockets --loader xbl_s_devprg_ns.melf
    ```
 
-   It goes to `firmware/` in the same folder, a few hundred MB. It holds this
+   It goes to `firmware/` in the same folder: up to a few GB (1.5 GB on an
+   Odin 2 Portal). It holds this
    device's own data: keep it private.
 
 3. **Flash.** Still in EDL:

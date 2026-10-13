@@ -93,6 +93,10 @@ class FakeUsbDevice {
       const copy = new Uint8Array(p);
       resolve({ status: 'ok', data: new DataView(copy.buffer) });
     }
+    if (!this.inq.length) {
+      this.printing = false;
+      if (this.started) this.starting = false;
+    }
   }
 
   transferIn(ep, len) {
@@ -105,6 +109,11 @@ class FakeUsbDevice {
   }
 
   async transferOut(ep, data) {
+    this.check();
+    // a loader printing its log takes nothing until that is read (seen on the Portal)
+    while ((this.starting || (this.printing && this.inq.length)) && !this.gone) {
+      await new Promise((r) => setTimeout(r, 2));
+    }
     this.check();
     const b = new Uint8Array(data.buffer ? data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) : data);
     this.phone.log.push(b.length);
@@ -226,6 +235,12 @@ class EdlUsb extends FakeUsbDevice {
       this.send(u32(0x06, 0x0c, 0));
       ph.edl = 'firehose';
       ph.loads += 1;
+      // the SM8550 loader (Odin 2 Portal, 2026-10-13) prints its start-up log about 0.5 s
+      // later, and takes nothing from the host until that log is read
+      if (ph.startupLog) {
+        this.starting = true;
+        setTimeout(() => { if (!this.gone) { this.loaderLog(); this.started = true; } }, ph.startupLog);
+      }
     }
   }
 
@@ -260,6 +275,12 @@ class EdlUsb extends FakeUsbDevice {
   // Firehose
   rsp(value, attrs = '') { this.send(`<?xml version="1.0" encoding="UTF-8" ?><data><response value="${value}"${attrs} /></data>`); }
   logline(text) { this.send(`<?xml version="1.0" encoding="UTF-8" ?><data><log value="${text}" /></data>`); }
+  loaderLog() {
+    this.printing = true;
+    for (const l of ['Binary build date: Apr 26 2024 @ 07:33:11\n', 'Chip serial num (0x0) Chip ID (0x0)', 'Supported Functions (15):',
+                     'program', 'read', 'nop', 'patch', 'configure', 'setbootablestoragedrive', 'erase', 'power', 'firmwarewrite',
+                     'getstorageinfo', 'benchmark', 'emmc', 'ufs', 'fixgpt', 'getsha256digest', 'End of supported functions 15']) this.logline(`INFO: ${l}`);
+  }
 
   firehose(b) {
     const ph = this.phone;
@@ -288,10 +309,8 @@ class EdlUsb extends FakeUsbDevice {
     const ss = ph.sectorSize;
     if (tag === 'nop') {
       // as the SM8550 loader does (Odin 2 Portal, 2026-10-13): a log line per packet, then the ACK
-      for (const l of ['Calling handler for nop', 'Binary build date: Apr 26 2024 @ 07:33:11\n', 'Chip serial num (0x0) Chip ID (0x0)',
-                       'Supported Functions (15):', 'program', 'read', 'nop', 'patch', 'configure', 'setbootablestoragedrive', 'erase',
-                       'power', 'firmwarewrite', 'getstorageinfo', 'benchmark', 'emmc', 'ufs', 'fixgpt', 'getsha256digest',
-                       'End of supported functions 15']) this.logline(`INFO: ${l}`);
+      this.logline('INFO: Calling handler for nop');
+      this.loaderLog();
       return this.rsp('ACK', ' rawmode="false"');
     }
     if (tag === 'configure') {
@@ -350,9 +369,10 @@ function concat(parts) {
 export class FakePhone {
   constructor({ sahara = 3, msmId = 0x2520e1, hwidTop = 0, serial = 0x1056a040, chipIdFails = false, commandMode = true,
                 memory = 'ufs', loader = new Uint8Array(9000).map((_, i) => (i * 7) & 0xff), maxPayload = 1048576,
-                configureLogs = true, critical = false, corrupt = false, lag = {}, busy = false, android = { a: {}, b: {} }, vars = {}, stockA, stockB } = {}) {
+                configureLogs = true, critical = false, corrupt = false, lag = {}, busy = false, android = { a: {}, b: {} },
+                startupLog = 500, vars = {}, stockA, stockB } = {}) {
     Object.assign(this, { sahara, msmId, hwidTop, serial, chipIdFails, commandMode, memory, loader, maxPayload,
-                          configureLogs, critical, corrupt, lag, busy });
+                          configureLogs, critical, corrupt, lag, busy, startupLog });
     this.vars = { serialno: 'FAKE1234', unlocked: 'yes', secure: 'no', product: 'kalama', variant: 'SGP UFS', 'current-slot': 'a',
                   'battery-voltage': '4100', 'has-slot:abl': 'yes', ...vars };
     this.sectorSize = memory === 'emmc' ? 512 : 4096;

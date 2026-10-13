@@ -260,15 +260,19 @@ export class QdlEdl {
     return { msmId: sahara.msmId ?? null };
   }
 
-  // A loader left running by an earlier page may still have replies queued,
-  // and they would be taken for the answers to our commands: read them away,
-  // then wait for the answer to a nop before the first command.
+  // A loader left running by an earlier page may still have replies queued, and
+  // one just started prints its start-up log: either would be taken for the
+  // answers to our commands. Read them away, then wait for the answer to a nop
+  // before the first command.
   async resync() {
     const quiet = async () => {
       for (let n = 0; n < 1 << 17 && (await this.cdc.next(300)); n++);
     };
     await quiet();
-    await this.cdc.write(new TextEncoder().encode(toXml("nop")));
+    // keep reading while the nop goes out: a loader that just started prints its
+    // start-up log first and takes nothing until that is read
+    const sent = this.cdc.write(new TextEncoder().encode(toXml("nop")));
+    sent.catch(() => {});
     const dec = new TextDecoder();
     let text = "";
     while (!text.includes("<response")) {
@@ -276,6 +280,7 @@ export class QdlEdl {
       if (!p) throw new Error("EDL: the loader does not answer: reboot the device to EDL and try again");
       text += dec.decode(p);
     }
+    await sent;
     await quiet();
   }
 

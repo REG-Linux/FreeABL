@@ -2,7 +2,7 @@
 // node --test web/test/  : the real USB code (vendor/fastboot.min.mjs and
 // vendor/edl-qdl.mjs through usb.js) against a fake phone that speaks
 // fastboot, Sahara and Firehose byte by byte (fakeusb.mjs).
-import { test } from 'node:test';
+import { test as nodeTest } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -15,6 +15,8 @@ const table = JSON.parse(readFileSync(ROOT + 'devices.json', 'utf8'));
 const STOCK7 = signedElf(7, 'stock'), FREE7 = signedElf(7, 'freeabl');
 const STOCK5 = signedElf(5, 'stock845'), FREE5 = signedElf(5, 'freeabl845');
 const quiet = () => {};
+// a USB deadlock fails its test instead of hanging the run
+const test = (name, fn) => nodeTest(name, { timeout: 60000 }, fn);
 const typing = (s) => async () => s;
 
 // qdl.js logs every device message at debug level
