@@ -1,4 +1,4 @@
 fastboot.min.mjs: kdrag0n/fastboot.js 5b613332aa9d66cca5bebb49f147cd084a76c464
 edl-qdl.mjs: web/src/edl-qdl.js + commaai/qdl.js d1e0683d3f66c6cb49b8ba07b03887b99c12dae6 (bun.lock)
 bd8283520de10c4cb39139f2f98297a420b39e456c3241db2c7322a82bd2a6db  fastboot.min.mjs
-5f7443edd0bb013c71379b1c4911fc9fd2116981257f4126a0b35aaede41306b  edl-qdl.mjs
+be9453eca36f280c74c28e4909cb1588b112e1685e2fd179fd52bd9d76acc90d  edl-qdl.mjs

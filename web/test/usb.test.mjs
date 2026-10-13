@@ -113,6 +113,22 @@ test('page reloaded with the loader already running: reconnects without a new up
   assert.ok(startsWith(await edl.read('abl_a'), STOCK7));
 });
 
+test('page closed in the middle of a command: its unread replies do not shift the next page', async () => {
+  const ph = attach(new FakePhone({ stockA: STOCK7 }).plug('edl'));
+  await usb.edlDriver(quiet).connect(ph.loader, 'ufs');
+  ph.dev.waiters.length = 0;
+  // the old page sent a nop and a configure and went away before reading
+  await ph.dev.out(new TextEncoder().encode('<?xml version="1.0" ?><data><nop /></data>'));
+  await ph.dev.out(new TextEncoder().encode('<?xml version="1.0" ?><data><configure MemoryName="UFS" MaxPayloadSizeToTargetInBytes="1048576" /></data>'));
+  assert.ok(ph.dev.inq.length > 20);
+  const edl = usb.edlDriver(quiet);
+  await edl.connect(ph.loader, 'ufs');
+  assert.ok(startsWith(await edl.read('abl_a'), STOCK7));
+  assert.ok((await edl.read('abl_b')).every((x) => x === 0));
+  await edl.write('abl_a', FREE7);
+  assert.ok(startsWith(await edl.read('abl_a'), FREE7));
+});
+
 test('slow device: late replies are waited for, never lost', async () => {
   // each reply comes after qdl.js's own timeouts (1 s hello, 1-3 s firehose, 2 s data)
   const ph = attach(new FakePhone({ stockA: STOCK7, lag: { hello: 1500, configure: 4500, read: 2500, program: 4500 } }).plug('edl'));
@@ -126,6 +142,13 @@ test('slow device: late replies are waited for, never lost', async () => {
   ph.lag = {};
   assert.ok(startsWith(await edl.read('abl_a'), FREE7));
   assert.deepEqual(ph.writes.map((w) => ph.where(w)), ['abl_a']);
+});
+
+test('device held by another program: says what to close', async () => {
+  const ph = attach(new FakePhone({ stockA: STOCK7, busy: true }));
+  await assert.rejects(usb.fastbootDriver(quiet).connect(), /adb kill-server/);
+  ph.plug('edl');
+  await assert.rejects(usb.edlDriver(quiet).connect(ph.loader, 'ufs'), /qcserial.*adb kill-server/);
 });
 
 // --- the page's steps (core.js) with the real drivers -------------------------

@@ -7,6 +7,8 @@
 //   SoCs speak Sahara 3);
 // - the MSM ID is read in command mode (MSM_HW_ID_READ, or READ_CHIP_ID_V3 on
 //   Sahara 3), and failing to read it or the serial is not fatal;
+// - reconnecting to a loader that is still running (page reloaded) first
+//   reads away what an earlier page left unread;
 // - storage type and sector size follow the device (UFS 4096, eMMC 512);
 // - configure accepts any ACK and, on a NAK that names the loader's own
 //   payload size, retries with it (qdl.js wants specific log lines);
@@ -249,9 +251,29 @@ export class QdlEdl {
       mode = await sahara.uploadLoader();
     }
     if (mode !== "firehose") throw new Error(`EDL: unexpected mode ${mode}: reboot the device to EDL and try again`);
+    await this.resync();
     this.firehose = new FreeablFirehose(this.cdc, memory);
     if (!(await this.firehose.configure())) throw new Error("EDL: the loader did not accept the configuration");
     return { msmId: sahara.msmId ?? null };
+  }
+
+  // A loader left running by an earlier page may still have replies queued,
+  // and they would be taken for the answers to our commands: read them away,
+  // then wait for the answer to a nop before the first command.
+  async resync() {
+    const quiet = async () => {
+      for (let n = 0; n < 1 << 17 && (await this.cdc.next(300)); n++);
+    };
+    await quiet();
+    await this.cdc.write(new TextEncoder().encode(toXml("nop")));
+    const dec = new TextDecoder();
+    let text = "";
+    while (!text.includes("<response")) {
+      const p = await this.cdc.next(SILENCE_S * 1000);
+      if (!p) throw new Error("EDL: the loader does not answer: reboot the device to EDL and try again");
+      text += dec.decode(p);
+    }
+    await quiet();
   }
 
   async locate(name) {

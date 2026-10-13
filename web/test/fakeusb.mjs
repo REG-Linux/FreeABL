@@ -68,7 +68,12 @@ class FakeUsbDevice {
   async reset() { this.check(); }
   async forget() {}
   async selectConfiguration() { this.check(); }
-  async claimInterface() { this.check(); this.configurations[0].interfaces[0].claimed = true; this.claimed(); }
+  async claimInterface() {
+    this.check();
+    if (this.phone.busy) throw new Error("NetworkError: Failed to execute 'claimInterface' on 'USBDevice': Unable to claim interface.");
+    this.configurations[0].interfaces[0].claimed = true;
+    this.claimed();
+  }
   claimed() {}
   check() { if (this.gone) throw new Error('NetworkError: device disconnected'); }
 
@@ -278,7 +283,14 @@ class EdlUsb extends FakeUsbDevice {
     ph.firehoseCmds.push(tag);
     this.lag = ph.lag[tag] ?? 0;
     const ss = ph.sectorSize;
-    if (tag === 'nop') return this.rsp('ACK');
+    if (tag === 'nop') {
+      // as the SM8550 loader does (Odin 2 Portal, 2026-10-13): a log line per packet, then the ACK
+      for (const l of ['Calling handler for nop', 'Binary build date: Apr 26 2024 @ 07:33:11\n', 'Chip serial num (0x0) Chip ID (0x0)',
+                       'Supported Functions (15):', 'program', 'read', 'nop', 'patch', 'configure', 'setbootablestoragedrive', 'erase',
+                       'power', 'firmwarewrite', 'getstorageinfo', 'benchmark', 'emmc', 'ufs', 'fixgpt', 'getsha256digest',
+                       'End of supported functions 15']) this.logline(`INFO: ${l}`);
+      return this.rsp('ACK', ' rawmode="false"');
+    }
     if (tag === 'configure') {
       if (ph.configureLogs) {
         this.logline('INFO: Binary build date: Jan 27 2026 @ 23:17:47');
@@ -335,9 +347,9 @@ function concat(parts) {
 export class FakePhone {
   constructor({ sahara = 3, msmId = 0x2520e1, hwidTop = 0, serial = 0x1056a040, chipIdFails = false, commandMode = true,
                 memory = 'ufs', loader = new Uint8Array(9000).map((_, i) => (i * 7) & 0xff), maxPayload = 1048576,
-                configureLogs = true, critical = false, corrupt = false, lag = {}, vars = {}, stockA, stockB } = {}) {
+                configureLogs = true, critical = false, corrupt = false, lag = {}, busy = false, vars = {}, stockA, stockB } = {}) {
     Object.assign(this, { sahara, msmId, hwidTop, serial, chipIdFails, commandMode, memory, loader, maxPayload,
-                          configureLogs, critical, corrupt, lag });
+                          configureLogs, critical, corrupt, lag, busy });
     this.vars = { serialno: 'FAKE1234', unlocked: 'yes', product: 'kalama', variant: 'SGP UFS', 'current-slot': 'a',
                   'battery-voltage': '4100', 'has-slot:abl': 'yes', ...vars };
     this.sectorSize = memory === 'emmc' ? 512 : 4096;
