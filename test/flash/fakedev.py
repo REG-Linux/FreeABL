@@ -55,6 +55,7 @@ args = [a for a in args if not a.startswith('--')]
 loaded = os.path.join(D, '.loaded')
 if not os.path.exists(loaded):
     print(f"HWID:              0x{V['msm']:08x}00000000 (MSM_ID:0x{V['msm']:08x},OEM_ID:0x0000,MODEL_ID:0x0000)")
+    print(f"- Chip Serial Number : {V.get('chip', '1234abcd')}")
     open(loaded, 'w').close()
 cmd = args[0]
 # layout as the edl tool prints it (offsets in bytes); UFS, 4096-byte sectors

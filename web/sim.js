@@ -67,7 +67,8 @@ export function bootHeader(os = '13', patch = '2023-06') {
 
 export class SimDevice {
   constructor({ stockA, stockB, vars = {}, msmId = 0x2520e1, critical = false, corrupt = false,
-                android = { a: {}, b: {} } } = {}) {
+                android = { a: {}, b: {} }, chipSerial = '5e1a1234' } = {}) {
+    this.chipSerial = chipSerial;
     this.vars = { serialno: 'SIM12345', unlocked: 'yes', secure: 'no', product: 'kalama', variant: 'SGP UFS',
                   'current-slot': 'a', 'battery-voltage': '4100', ...vars };
     this.msmId = msmId;
@@ -122,12 +123,17 @@ export class SimDevice {
     };
   }
 
+  // one EDL driver per device, like the page's session: it keeps what connect() read
   get edl() {
-    return {
+    if (this.edlDriver) return this.edlDriver;
+    const drv = this.edlDriver = {
+      chipSerial: null,
       connect: async () => {
+        // like the boot ROM: chip ID and serial only before the loader runs
         const msmId = this.edlLoaded ? null : this.msmId;
+        drv.chipSerial = this.edlLoaded ? null : this.chipSerial;
         this.edlLoaded = true;
-        return { msmId };
+        return { msmId, chipSerial: drv.chipSerial };
       },
       partitions: async () => this.partitions(),
       read: async (part, max = Infinity) => {
@@ -144,5 +150,6 @@ export class SimDevice {
       },
       reset: async () => { this.edlLoaded = false; },
     };
+    return drv;
   }
 }

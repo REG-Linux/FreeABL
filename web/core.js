@@ -272,7 +272,7 @@ export async function checkImage(dev, name, bytes, sums, log) {
 export async function check(fb, table, log) {
   await fb.connect();
   const v = {};
-  for (const k of ['serialno', 'product', 'variant', 'unlocked', 'secure', 'current-slot', 'battery-voltage', 'freeabl']) {
+  for (const k of ['serialno', 'product', 'variant', 'unlocked', 'secure', 'current-slot', 'battery-voltage', 'freeabl', 'chip-serial']) {
     v[k] = await fb.getVar(k).catch(() => null);
     log(`  ${k.padEnd(16)} ${v[k] || '-'}`);
   }
@@ -288,7 +288,8 @@ export async function check(fb, table, log) {
   if (!v.serialno) stop('the device did not report its serial number');
   // FreeABL 0.2 and later says so; the bootloader running is the one on the active slot
   if (v.freeabl === 'yes') log(`FreeABL is running: abl_${slot} holds FreeABL, not the stock bootloader`);
-  return { serial: v.serialno, slot, product: v.product, variant: v.variant, freeabl: v.freeabl === 'yes', time: new Date().toISOString() };
+  return { serial: v.serialno, slot, product: v.product, variant: v.variant, freeabl: v.freeabl === 'yes',
+           chipSerial: v['chip-serial'] || null, time: new Date().toISOString() };
 }
 
 export async function edlConnect(edl, dev, loader, untested, log) {
@@ -309,14 +310,29 @@ const buildTag = (a) => {
 };
 
 /**
+ * Two devices look the same in EDL. The chip serial number, read by the boot ROM
+ * on a fresh EDL connection (edl.chipSerial) and reported by FreeABL's fastboot
+ * (state.chipSerial), ties a backup to its device.
+ */
+export function sameDevice({ bk = null, edl = null, state = null }) {
+  const chips = [['the backup', bk?.info.chip_serial], ['the device in EDL', edl?.chipSerial], ['the device in fastboot', state?.chipSerial]]
+    .filter(([, c]) => c);
+  for (const [what, c] of chips.slice(1)) {
+    if (c !== chips[0][1]) stop(`${what} is chip ${c}, ${chips[0][0]} chip ${chips[0][1]}: not the same device. Connect only the device you mean, and start again`);
+  }
+}
+
+/**
  * Reads abl_a and abl_b twice. Returns the backup archive and its description.
  * freeablImages: FreeABL images to recognise (the one chosen for the install):
  * a slot that holds one is marked so, and never restored from this backup.
  */
 export async function backup(edl, dev, state, msmId, log, { freeablImages = [] } = {}) {
+  sameDevice({ edl, state });
   const info = { device: dev.id, soc: dev.soc, product: state.product || null, variant: state.variant || null,
                  serial: state.serial, slot: state.slot, msm_id: msmId === null ? null : `0x${msmId.toString(16)}`,
-                 time: new Date().toISOString(), partitions: {} };
+                 chip_serial: edl.chipSerial || state.chipSerial || null, time: new Date().toISOString(), partitions: {} };
+  if (!info.chip_serial) log('note: chip serial not read (EDL loader already running): this backup is not tied to the chip');
   const files = [];
   for (const s of SLOTS) {
     const part = `abl_${s}`;
@@ -410,6 +426,7 @@ export async function flash({ via, edl, fb, dev, state, bk, image, imageSha, unt
     }
     phrase = `FLASH-UNTESTED-${part.toUpperCase()}`;
   }
+  sameDevice({ bk, edl: via === 'edl' ? edl : null, state });
   const typed = await confirm(phrase, `About to write the image (sha256 ${imageSha.slice(0, 16)}...) to ${part} of the ${dev.name} ${state.serial} via ${via}. Nothing else is written.${warn ? '\n' + warn : ''}`);
   if (typed !== phrase) stop('aborted');
   if (via === 'edl') {
@@ -463,6 +480,7 @@ export async function restore({ via, edl, fb, state, bk, confirm, log }) {
                 : '\nNote: this FreeABL cannot tell the Android build. If Android was updated since this backup, cancel and restore over EDL, which checks it.';
     log(note.trim());
   } else log(`backup and device on the same Android build (${androidLabel(now)})`);
+  sameDevice({ bk, edl: via === 'edl' ? edl : null, state });
   const phrase = `RESTORE-${part.toUpperCase()}`;
   const typed = await confirm(phrase, `About to write the stock backup to ${part} of ${state.serial} via ${via}.${note}`);
   if (typed !== phrase) stop('aborted');
@@ -502,8 +520,10 @@ export async function dumpPlan(edl, state) {
 
 /** Reads the planned partitions into sink.write(bytes) as a tar; loadBackup() takes it like a backup. */
 export async function dump(edl, dev, state, msmId, plan, sink, log, { freeablImages = [] } = {}) {
+  sameDevice({ edl, state });
   const info = { device: dev.id, soc: dev.soc, product: state.product || null, variant: state.variant || null,
                  serial: state.serial, slot: state.slot, msm_id: msmId === null ? null : `0x${msmId.toString(16)}`,
+                 chip_serial: edl.chipSerial || state.chipSerial || null,
                  time: new Date().toISOString(), android: plan.android, partitions: {}, firmware: {} };
   const sums = [];
   let done = 0;

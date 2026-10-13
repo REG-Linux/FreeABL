@@ -302,3 +302,28 @@ test('USB failure in the middle of a write: stock put back, or told not to reboo
   await core.restore({ via: 'edl', edl: x.sim.edl, state: x.state, bk: x.bk, confirm: typing('RESTORE-ABL_A'), log: quiet });
   assert.ok(prefix(x.sim, 'abl_a', STOCK7));
 });
+
+// --- two devices connected: the chip serial ties a backup to its device -------------
+test('wrong device: backup of one, restore or flash on another, swap between fastboot and EDL', async () => {
+  const x = await setup({ stockA: STOCK7, stockB: STOCK7, chipSerial: 'aaaa0001' }, { device: 'pockets' });
+  assert.equal(x.bk.info.chip_serial, 'aaaa0001');
+  // the other device (same model, same Android serial in this simulation) in EDL
+  const other = new SimDevice({ stockA: FREE7, stockB: STOCK7, chipSerial: 'bbbb0002' });
+  const edl = other.edl;
+  await core.edlConnect(edl, x.dev, new Uint8Array(1), false, quiet);
+  await assert.rejects(core.restore({ via: 'edl', edl, state: x.state, bk: x.bk, confirm: typing('RESTORE-ABL_A'), log: quiet }),
+                       /device in EDL is chip bbbb0002, the backup chip aaaa0001: not the same device/);
+  await assert.rejects(core.flash(flashArgs({ ...x, sim: other }, FREE7, { edl })), /not the same device/);
+  assert.deepEqual(other.writes, []);
+  // FreeABL's fastboot reports the chip: Update and Back to stock over fastboot check it
+  other.vars['chip-serial'] = 'bbbb0002';
+  const st = await core.check(other.fastboot, table, quiet);
+  await assert.rejects(core.restore({ via: 'fastboot', fb: other.fastboot, state: st, bk: x.bk, confirm: typing('RESTORE-ABL_A'), log: quiet }),
+                       /fastboot is chip bbbb0002, the backup chip aaaa0001/);
+  // checked in fastboot (FreeABL), then the other one put in EDL
+  x.sim.vars['chip-serial'] = 'aaaa0001';
+  const st2 = await core.check(x.sim.fastboot, table, quiet);
+  const edl2 = new SimDevice({ stockA: STOCK7, stockB: STOCK7, chipSerial: 'bbbb0002' }).edl;
+  await core.edlConnect(edl2, x.dev, new Uint8Array(1), false, quiet);
+  await assert.rejects(core.backup(edl2, x.dev, st2, null, quiet), /device in fastboot is chip aaaa0001, the device in EDL chip bbbb0002: not the same device/);
+});

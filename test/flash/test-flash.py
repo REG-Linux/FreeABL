@@ -354,6 +354,22 @@ rc, out = d.run('restore', '-d', 'pockets', *L(d), stdin='RESTORE-ABL_A\n')
 check('then restore over EDL works', rc == 0 and d.part('abl_a')[:len(STOCK7)] == STOCK7, out)
 shutil.rmtree(d.dir)
 
+# 16. two devices: the chip serial ties the backup to its device
+d = Dev(STOCK7, STOCK7, chip='aaaa0001')
+d.run('check'); d.run('backup', '-d', 'pockets', *L(d))
+check('backup records the chip serial', list(bjson(d).values())[0].get('chip_serial') == 'aaaa0001')
+d.vars['chip'] = 'bbbb0002'; d.update('a', {})          # another device of the same model, fresh in EDL
+os.remove(os.path.join(d.dir, '.loaded')) if os.path.exists(os.path.join(d.dir, '.loaded')) else None
+rc, out = d.run('restore', '-d', 'pockets', *L(d), stdin='RESTORE-ABL_A\n')
+calls = open(os.path.join(d.dir, 'calls.log')).read()
+check('restore on another device refused, nothing written', rc != 0 and 'chip bbbb0002' in out and 'not the same device' in out
+      and not any(l.startswith('edl w') for l in calls.splitlines()), out)
+d.vars['chip-serial'] = 'bbbb0002'; d.update('a', {})   # FreeABL's fastboot reports it
+d.run('check')
+rc, out = d.run('restore', '-d', 'pockets', '--via', 'fastboot', stdin='RESTORE-ABL_A\n')
+check('restore over fastboot on another device refused', rc != 0 and 'not the same device' in out, out)
+shutil.rmtree(d.dir)
+
 # 14. firmware dump: read only, big partitions left out
 d = Dev(STOCK7, STOCK7)
 d.run('check')

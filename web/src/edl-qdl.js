@@ -5,8 +5,9 @@
 // Differences from qdl.js's own qdlDevice, after bkerler/edl (GPL-3.0):
 // - the Sahara hello is answered with the version the device announced (newer
 //   SoCs speak Sahara 3);
-// - the MSM ID is read in command mode (MSM_HW_ID_READ, or READ_CHIP_ID_V3 on
-//   Sahara 3), and failing to read it or the serial is not fatal;
+// - the MSM ID and the chip serial number are read in command mode
+//   (MSM_HW_ID_READ, or READ_CHIP_ID_V3 on Sahara 3; SERIAL_NUM_READ), and
+//   failing to read them is not fatal;
 // - reconnecting to a loader that is still running (page reloaded) first
 //   reads away what an earlier page left unread;
 // - storage type and sector size follow the device (UFS 4096, eMMC 512);
@@ -25,6 +26,7 @@ import { cmd_t, sahara_mode_t } from "qdl/saharaDefs";
 import { packGenerator, runWithTimeout } from "qdl/utils";
 import { toXml } from "qdl/xml";
 
+const EXEC_SERIAL_NUM_READ = 0x01;
 const EXEC_MSM_HW_ID_READ = 0x02;
 const EXEC_READ_CHIP_ID_V3 = 0x0a;
 const CHUNK_BYTES = 1 << 20;   // per read command and per USB transfer
@@ -133,11 +135,22 @@ class FreeablSahara extends Sahara {
     return null;
   }
 
+  // the chip serial number, 8 hex digits, or null (qdl.js's ignores the packet's byteOffset)
+  async readSerial() {
+    try {
+      const r = await this.cmdExec(EXEC_SERIAL_NUM_READ);
+      if (r instanceof Uint8Array && r.length >= 4) return new DataView(r.buffer, r.byteOffset).getUint32(0, true).toString(16).padStart(8, "0");
+    } catch {
+      // not fatal: the device is then not identified in EDL
+    }
+    return null;
+  }
+
   async uploadLoader() {
     this.msmId = null;
     if (await this.enterCommandMode()) {
       this.msmId = await this.readMsmId();
-      try { this.serial = await this.cmdGetSerialNum(); } catch { /* not needed */ }
+      this.serial = await this.readSerial();
       await this.cmdModeSwitch(sahara_mode_t.SAHARA_MODE_COMMAND);
       if ((await this.connect()) !== "sahara") throw new Error("EDL: the device did not restart Sahara after the chip ID read: reboot it to EDL and try again");
     }
@@ -257,7 +270,9 @@ export class QdlEdl {
     await this.resync();
     this.firehose = new FreeablFirehose(this.cdc, memory);
     if (!(await this.firehose.configure())) throw new Error("EDL: the loader did not accept the configuration");
-    return { msmId: sahara.msmId ?? null };
+    // kept on the driver: the steps check a backup belongs to this device
+    this.chipSerial = sahara.serial ?? null;
+    return { msmId: sahara.msmId ?? null, chipSerial: this.chipSerial };
   }
 
   // A loader left running by an earlier page may still have replies queued, and
@@ -336,6 +351,13 @@ export class QdlEdl {
     const ss = this.firehose.cfg.SECTOR_SIZE_IN_BYTES;
     if (Math.ceil(bytes.length / ss) > sectors) throw new Error(`EDL: image larger than ${name}`);
     if (!(await this.firehose.cmdProgram(lun, start, new Blob([bytes])))) throw new Error(`EDL: write of ${name} failed`);
+  }
+
+  /** What the loader says about the storage of a LUN (read only): its log lines and response. */
+  async storageInfo(lun = 0) {
+    await this.cdc.write(new TextEncoder().encode(toXml("getstorageinfo", { physical_partition_number: lun })));
+    const data = await this.firehose.waitForData();
+    return { logs: this.firehose.xml.getLog(data), response: this.firehose.xml.getResponse(data) };
   }
 
   async reset() {

@@ -146,12 +146,16 @@ def edl_run(dev, loader, *args, memory=True):
         cmd.append(f"--memory={dev['memory']}")
     r = subprocess.run(cmd, capture_output=True, text=True)
     out = r.stdout + r.stderr
-    # the MSM ID is only shown on the first connection after EDL entry: keep it
+    # the MSM ID and the chip serial are only shown on the first connection after EDL entry: keep them
     m = re.search(r'MSM_ID:0x([0-9a-fA-F]+)', out)
-    if m and STATE_FILE and os.path.isfile(STATE_FILE):
+    c = re.search(r'Chip Serial Number\s*:\s*([0-9a-fA-F]+)', out)
+    if (m or c) and STATE_FILE and os.path.isfile(STATE_FILE):
         try:
             st = json.load(open(STATE_FILE))
-            st['msm_id'] = int(m.group(1), 16)
+            if m:
+                st['msm_id'] = int(m.group(1), 16)
+            if c:
+                st['chip_serial'] = c.group(1).lower().rjust(8, '0')
             json.dump(st, open(STATE_FILE, 'w'), indent=1)
         except (OSError, ValueError):
             pass
@@ -503,7 +507,7 @@ def cmd_devices(args):
 def cmd_check(args):
     serial = fb_one_device()
     v = {k: fb_getvar(k) for k in ('product', 'variant', 'unlocked', 'secure', 'current-slot',
-                                   'battery-voltage', 'battery-soc-ok', 'freeabl')}
+                                   'battery-voltage', 'battery-soc-ok', 'freeabl', 'chip-serial')}
     for k, x in v.items():
         print(f"  {k:<16} {x if x not in (None, '') else '-'}")
     if v['unlocked'] != 'yes':
@@ -530,16 +534,33 @@ def cmd_check(args):
     if v['freeabl'] == 'yes':
         print(f"FreeABL is running: abl_{slot} holds FreeABL, not the stock bootloader")
     st = dict(serial=serial, slot=slot, msm_id=None, product=v['product'], variant=v['variant'],
-              freeabl=v['freeabl'] == 'yes', time=time.strftime('%Y-%m-%d %H:%M:%S'))
+              freeabl=v['freeabl'] == 'yes', chip_serial_fb=v['chip-serial'] or None,
+              time=time.strftime('%Y-%m-%d %H:%M:%S'))
     json.dump(st, open(state_path(args), 'w'), indent=1)
     print(f"\nOK: device {serial}, active slot {slot}. Saved to {state_path(args)}.")
     print("Next: boot the device to EDL (see FLASHING.md), then run 'backup -d <device>'.")
+
+
+def same_device(info=None, st=None):
+    """Two devices look the same in EDL: the chip serial (boot ROM in EDL, FreeABL's fastboot)
+    ties a backup to its device."""
+    chips = [(w, c) for w, c in (('the backup', (info or {}).get('chip_serial')),
+                                 ('the device in EDL', (st or {}).get('chip_serial')),
+                                 ('the device in fastboot', (st or {}).get('chip_serial_fb'))) if c]
+    for what, c in chips[1:]:
+        if c != chips[0][1]:
+            die(f"{what} is chip {c}, {chips[0][0]} chip {chips[0][1]}: not the same device. "
+                "Connect only the device you mean, and start again")
 
 
 def edl_connect(args, dev, st):
     """Loader check, connection, MSM ID check; returns the partition list."""
     if dev['loader'] and not args.loader:
         die(f"the {dev['name']} needs an EDL loader: --loader PATH ({dev['loader_hint']})")
+    # what an earlier connection read may be another device's
+    s0 = load_state(args)
+    s0['chip_serial'] = None
+    json.dump(s0, open(state_path(args), 'w'), indent=1)
     out = edl_ok(dev, args.loader, 'printgpt', what='connection')
     msm = load_state(args).get('msm_id')
     if msm is not None and dev['msm_id'] is not None and msm != dev['msm_id']:
@@ -550,6 +571,7 @@ def edl_connect(args, dev, st):
     if msm is None:
         print("note: MSM ID not seen (EDL loader was already running): SoC not checked. "
               "Reboot to EDL again to have it checked.")
+    same_device(None, load_state(args))
     return out, parse_gpt(out), msm
 
 
@@ -566,7 +588,10 @@ def cmd_backup(args):
     open(os.path.join(dd, 'gpt.txt'), 'w').write(out)
     info = dict(device=args.device, soc=dev['soc'], product=st.get('product'), variant=st.get('variant'), serial=st['serial'], slot=st['slot'],
                 msm_id=None if msm is None else f'0x{msm:x}', time=time.strftime('%Y-%m-%d %H:%M:%S'),
+                chip_serial=load_state(args).get('chip_serial') or st.get('chip_serial_fb'),
                 android=android, partitions={})
+    if not info['chip_serial']:
+        print("note: chip serial not read (EDL loader already running): this backup is not tied to the chip")
     images = freeabl_images(args)
     for s in SLOTS:
         part = f'abl_{s}'
@@ -682,6 +707,7 @@ def cmd_flash(args):
         die("the device in fastboot mode is not the one in the backup")
     fba = fb_android() if args.via == 'fastboot' else None
     dd, info, stock, _ = load_backup(args, dev, st, fba)
+    same_device(info, load_state(args))
     if info['slot'] != st['slot']:
         die("the active slot changed since the backup (an Android update?): run 'check' and 'backup' again")
     img = os.path.abspath(args.image or default_image(dev))
@@ -752,6 +778,7 @@ def cmd_restore(args):
             die("the device in fastboot mode is not the one in the backup")
         now = fb_android()
     dd, info, stock, same = load_backup(args, dev, st, now)
+    same_device(info, load_state(args))
     part = f"abl_{st['slot']}"
     if mbn_version(stock) in ('empty', None):
         die(f"the backup of {part} is not a signed ABL: refusing to write it")

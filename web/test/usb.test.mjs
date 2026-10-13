@@ -39,8 +39,9 @@ const startsWith = core.startsWith;
 test('Sahara 3 (SM8550): chip ID, read, write abl_a only, reset', async () => {
   const ph = attach(new FakePhone({ stockA: STOCK7, stockB: new Uint8Array(0) }).plug('edl'));
   const edl = usb.edlDriver(quiet);
-  const { msmId } = await edl.connect(ph.loader, 'ufs');
+  const { msmId, chipSerial } = await edl.connect(ph.loader, 'ufs');
   assert.equal(msmId, 0x2520e1);
+  assert.equal(chipSerial, '1056a040');
   assert.deepEqual([...new Set(ph.helloVersions)], [3], 'answers the hello with the device version');
   const a = await edl.read('abl_a');
   assert.equal(a.length, 1 << 20);
