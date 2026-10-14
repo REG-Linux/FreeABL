@@ -388,6 +388,14 @@ check('Sahara 3: MSM ID seen and checked, chip serial 77bf0381', rc == 0 and 'MS
       and info['msm_id'] == '0x1f20e1' and info['chip_serial'] == '77bf0381', out + str(info))
 shutil.rmtree(d.dir)
 
+# 19. Sahara 2 output of the edl tool: chip serial read from its "Serial:" line
+d = Dev(signed_elf(6, 'stock'), signed_elf(6, 'stock'), msm=0xce0e1, chip='1056a040')
+d.run('check')
+rc, out = d.run('backup', '-d', 'pocketmax', *L(d))
+info = list(bjson(d).values())[0]
+check('Sahara 2: chip serial 1056a040 recorded', rc == 0 and info['chip_serial'] == '1056a040' and info['msm_id'] == '0xce0e1', out + str(info))
+shutil.rmtree(d.dir)
+
 # 14. firmware dump: read only, big partitions left out
 d = Dev(STOCK7, STOCK7)
 d.run('check')

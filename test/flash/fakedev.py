@@ -59,9 +59,10 @@ if not os.path.exists(loaded):
         print("sahara - - Chip Identifier V3 : 00020000")
         print(f"sahara - - MSM HWID : 0x{V['msm']:x} | model_id:0x0000 | oem_id:0000")
         print("sahara - - OEM PKHASH : 00000000")
-    else:
-        print(f"HWID:              0x{V['msm']:08x}00000000 (MSM_ID:0x{V['msm']:08x},OEM_ID:0x0000,MODEL_ID:0x0000)")
-        print(f"- Chip Serial Number : {V.get('chip', '1234abcd')}")
+    else:                           # Sahara 2, as the edl tool prints it (Mangmi Pocket Max)
+        print(f"\nVersion 0x2\n------------------------\nHWID:              0x{V['msm']:08x}00000000 "
+              f"(MSM_ID:0x{V['msm']:08x},OEM_ID:0x0000,MODEL_ID:0x0000)\nCPU detected:      \"SM8250\"\n"
+              f"PK_HASH:           0xd40eee56f3194665\nSerial:            0x{V.get('chip', '1234abcd')}")
     open(loaded, 'w').close()
 cmd = args[0]
 # layout as the edl tool prints it (offsets in bytes); UFS, 4096-byte sectors

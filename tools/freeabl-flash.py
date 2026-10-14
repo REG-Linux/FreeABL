@@ -167,7 +167,9 @@ def edl_run(dev, loader, *args, memory=True):
     m = re.search(r'MSM_ID:0x([0-9a-fA-F]+)', clean) or re.search(r'MSM HWID\s*:\s*0x([0-9a-fA-F]+)', clean)
     # the edl tool reads the serial as 64 bits on Sahara 3 ("43777bf0381": the CID 0437 above
     # the chip serial): the chip serial is the low 32 bits, as the boot ROM and FreeABL give it
-    c = re.search(r'Chip Serial Number\s*:\s*(?:0x)?([0-9a-fA-F]+)', clean)
+    # Sahara 2 prints it as "Serial:            0x1056a040" (Mangmi Pocket Max)
+    c = (re.search(r'Chip Serial Number\s*:\s*(?:0x)?([0-9a-fA-F]+)', clean)
+         or re.search(r'(?m)^\s*Serial:\s+0x([0-9a-fA-F]+)', clean))
     if (m or c) and STATE_FILE and os.path.isfile(STATE_FILE):
         try:
             st = json.load(open(STATE_FILE))
