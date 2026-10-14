@@ -23,6 +23,9 @@ function inUse(e, edl) {
 
 export function fastbootDriver(log) {
   const dev = new fastboot.FastbootDevice();
+  // fastboot.js grabs ANY device that appears on the bus, to reconnect after a reboot it waits
+  // for: it took the device coming back in Android away from ADB. The page never waits for that.
+  dev._registeredUsbListeners = true;
   return {
     connect: async () => {
       if (!dev.isConnected) {
