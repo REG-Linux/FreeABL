@@ -144,7 +144,7 @@ test('tester mode', async () => {
   assert.ok(prefix(x.sim, 'abl_a', FREE7));
   const y = await setup({ stockA: STOCK7, stockB: STOCK7, msmId: 0x99e1 }, { device: 'pockets', untested: true });
   assert.equal(y.bk.info.msm_id, '0x99e1');
-  const z = await setup({ stockA: STOCK6, stockB: EMPTY, msmId: 0x99 }, { device: 'airx' });
+  const z = await setup({ stockA: STOCK6, stockB: EMPTY, msmId: 0x14d0e1 }, { device: 'airx' });
   await assert.rejects(core.flash(flashArgs(z, signedElf(6, 'f'))), /Tester mode/);
 });
 

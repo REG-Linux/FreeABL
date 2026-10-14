@@ -67,10 +67,10 @@ DEVICES = {
                       loader_sha256='0e482b270c0c6d6f1eb20d6586fa4357beb8960330b128a5f374828e4faa59ea',
                       loader_hint='prog_firehose_ddr.elf from the Mangmi Pocket Max firmware package'),
     'airx': dict(name='Mangmi Air X (MQ66)', soc='sm6115', mbn=6, validated='earlier', android=[],
-                 memory=None, msm_id=None, loader='prog_firehose_ddr.elf',
+                 memory='emmc', msm_id=0x14d0e1, loader='prog_firehose_ddr.elf',
                  loader_url=LOADERS + 'sm6115/mangmi-air-x/prog_firehose_ddr.elf',
                  loader_sha256='d2cfbbb0526c61596e29d2a815a62e5b521d68e29a9f2767ebf8e48b05b190b2',
-                 loader_hint='the firehose loader from the Mangmi firmware package'),
+                 loader_hint='prog_firehose_ddr.elf from the Mangmi Air X firmware package'),
 }
 # signature format (MBN header version) of the FreeABL image for each SoC
 SOC_MBN = {'sdm845': 5, 'sm6115': 6, 'sm8250': 6, 'sm8550': 7, 'sm8650': 7, 'sm8750': 7}
