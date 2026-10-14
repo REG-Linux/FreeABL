@@ -137,6 +137,11 @@
         pick that device, select <b>WinUSB</b> and click Replace Driver. Qualcomm's QFIL then no longer sees the device until you
         reinstall its driver.</li>
     </ul>
+    <h3>All systems</h3>
+    <ul>
+      <li>Only one program may use the device at a time: one flasher tab, no adb server (<code>adb kill-server</code>),
+        no fastboot or QFIL. "Unable to claim interface" means something else has it: close it, unplug and replug the device.</li>
+    </ul>
     <h3>Linux</h3>
     <ul>
       <li>Let your user open the devices: create <code>/etc/udev/rules.d/51-freeabl.rules</code> with

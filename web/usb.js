@@ -19,7 +19,13 @@ export function fastbootDriver(log) {
   const dev = new fastboot.FastbootDevice();
   return {
     connect: async () => {
-      if (!dev.isConnected) await dev.connect().catch((e) => { throw inUse(e, false); });
+      if (!dev.isConnected) {
+        await dev.connect().catch(async (e) => {
+          // a half-open device would fail every later transfer: close it for the next try
+          await dev.device?.close().catch(() => {});
+          throw inUse(e, false);
+        });
+      }
     },
     getVar: async (name) => {
       try {
@@ -45,7 +51,10 @@ export function adbDriver(log) {
 export function edlDriver(log) {
   const edl = new QdlEdl(log);
   const connect = edl.connect.bind(edl);
-  edl.connect = (loader, memory) => connect(loader, memory).catch((e) => { throw inUse(e, true); });
+  edl.connect = (loader, memory) => connect(loader, memory).catch(async (e) => {
+    await edl.cdc?.device?.close().catch(() => {});
+    throw inUse(e, true);
+  });
   return edl;
 }
 
