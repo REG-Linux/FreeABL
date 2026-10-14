@@ -267,21 +267,24 @@ test('device pickers list only the device whose serial is known, except in EDL',
     requestDevice: async (o) => { asked.push(o.filters); if (!found) throw new Error('NotFoundError: No device selected.'); return {}; },
   } } });
   const u = await import('../usb.js?pin');      // a fresh copy, patching this navigator.usb
-  u.pinSerial('00314WHD01003717');
+  u.pinSerial('00314WHD01003717', 'fastboot');
+  u.pinSerial('MQ87122601191108', 'adb');     // another serial in Android (Mangmi Pocket Max, stock bootloader)
+  await navigator.usb.requestDevice({ filters: [{ classCode: 0xff, subclassCode: 0x42, protocolCode: 0x01 }] });
+  assert.equal(asked.pop()[0].serialNumber, 'MQ87122601191108');
   await navigator.usb.requestDevice({ filters: [{ classCode: 0xff, subclassCode: 0x42, protocolCode: 0x03 }] });
   await navigator.usb.requestDevice({ filters: [{ vendorId: 0x05c6, productId: 0x9008 }] });
   assert.deepEqual(asked[0], [{ classCode: 0xff, subclassCode: 0x42, protocolCode: 0x03, serialNumber: '00314WHD01003717' }]);
   assert.deepEqual(asked[1], [{ vendorId: 0x05c6, productId: 0x9008 }]);
   found = false;
-  await assert.rejects(navigator.usb.requestDevice({ filters: [{ classCode: 0xff }] }), /no device with serial 00314WHD01003717.*click again/);
+  await assert.rejects(navigator.usb.requestDevice({ filters: [{ classCode: 0xff, subclassCode: 0x42, protocolCode: 0x03 }] }), /no device with serial 00314WHD01003717.*click again/);
   found = true;
-  await navigator.usb.requestDevice({ filters: [{ classCode: 0xff }] });   // the pin is gone: every device listed
-  assert.deepEqual(asked[3], [{ classCode: 0xff }]);
+  await navigator.usb.requestDevice({ filters: [{ classCode: 0xff, subclassCode: 0x42, protocolCode: 0x03 }] });   // the pin is gone
+  assert.equal(asked.at(-1)[0].serialNumber, undefined);
   // an empty EDL list is not the serial's fault: the browser's error, unchanged, and the pin stays
-  u.pinSerial('d6a14b97');
+  u.pinSerial('d6a14b97', 'fastboot');
   found = false;
   await assert.rejects(navigator.usb.requestDevice({ filters: [{ vendorId: 0x05c6, productId: 0x9008 }] }), /^Error: NotFoundError: No device selected/);
   found = true;
-  await navigator.usb.requestDevice({ filters: [{ classCode: 0xff }] });
+  await navigator.usb.requestDevice({ filters: [{ classCode: 0xff, subclassCode: 0x42, protocolCode: 0x03 }] });
   assert.equal(asked.at(-1)[0].serialNumber, 'd6a14b97');
 });

@@ -122,7 +122,7 @@ async function adbConnect() {
   log('== Device in Android (USB debugging)');
   const a = adbDriver();
   seen = await core.androidCheck(a, selection(false), log, table);
-  if (!SIM) usb.pinSerial(seen.serial);
+  if (!SIM) usb.pinSerial(seen.serial, 'adb');
   adb = a;
 }
 
@@ -147,9 +147,10 @@ async function doCheck() {
   log(`== Check (${dev.name})`);
   fb = fastbootDriver();
   state = await core.check(fb, table, log);
-  if (!SIM) usb.pinSerial(state.serial);
-  // the chip serial seen in Android: the device put in EDL must have it
-  if (seen?.chipSerial && (!seen.serial || seen.serial === state.serial)) state.androidChipSerial = seen.chipSerial;
+  if (!SIM) usb.pinSerial(state.serial, 'fastboot');
+  // the chip serial seen in Android: the device put in EDL must have it (the Android and
+  // fastboot serials may differ, as on the Mangmi Pocket Max: the chip says if it is one device)
+  if (seen?.chipSerial) state.androidChipSerial = seen.chipSerial;
   log(`OK: device ${state.serial}, active slot ${state.slot}. Next: boot it to EDL and back up.`);
   if (!$('loader').files[0] && !SIM && !dev.loaderUrl) {
     log(`The backup needs the EDL loader: choose it now in section 1 (${dev.loaderHint || "the firehose loader from your device's firmware package"}).`);

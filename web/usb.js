@@ -70,24 +70,32 @@ export function edlDriver(log) {
 export const webUsbAvailable = () => typeof navigator !== 'undefined' && 'usb' in navigator;
 
 // Two devices look alike in the browser's device list. Once the device's serial is
-// known, every picker lists only that device (fastboot.js and ya-webadb ask with
-// their own filters: the serial is added to each).
-let wanted = null;
+// known in a mode, that mode's pickers list only that device (fastboot.js and
+// ya-webadb ask with their own filters: the serial is added to each). One serial
+// per mode: the Mangmi Pocket Max's stock bootloader gives Android another serial
+// (MQ87122601191108) than fastboot (bdc449b5).
+const wanted = { adb: null, fastboot: null };
+const modeOf = (filters) => (filters?.some((f) => f.subclassCode === 0x42 && f.protocolCode === 0x01) ? 'adb'
+  : filters?.some((f) => f.subclassCode === 0x42 && f.protocolCode === 0x03) ? 'fastboot' : null);
 if (typeof navigator !== 'undefined' && 'usb' in navigator) {
   const request = navigator.usb.requestDevice.bind(navigator.usb);
   navigator.usb.requestDevice = (opts = {}) => {
     // not in EDL (05c6:9008): the boot ROM shows no serial; the chip serial is checked instead
     const edlPick = opts.filters?.some((f) => f.vendorId === 0x05c6);
-    const filters = wanted && opts.filters && !edlPick ? opts.filters.map((f) => ({ ...f, serialNumber: wanted })) : opts.filters;
+    const mode = edlPick ? null : modeOf(opts.filters);
+    const serial = mode && wanted[mode];
+    const filters = serial ? opts.filters.map((f) => ({ ...f, serialNumber: serial })) : opts.filters;
     return request({ ...opts, filters }).catch((e) => {
       if (filters !== opts.filters && /No device selected/i.test(String(e?.message || e))) {
-        const was = wanted;
-        wanted = null;
+        const was = serial;
+        wanted[mode] = null;
         throw new Error(`no device with serial ${was} in this mode: if it shows another serial here, click again to choose from all devices`);
       }
       throw e;
     });
   };
 }
-/** List only the device with this USB serial in the pickers (null: all). */
-export function pinSerial(serial) { wanted = serial || null; }
+/** List only the device with this USB serial in this mode's pickers ('adb' or 'fastboot'; null serial: all, mode omitted: both). */
+export function pinSerial(serial, mode = null) {
+  for (const m of mode ? [mode] : ['adb', 'fastboot']) wanted[m] = serial || null;
+}
