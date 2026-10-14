@@ -73,12 +73,12 @@ try {
     return readdirSync(dl).find((f) => re.test(f));
   };
   const tar = await saved(/^freeabl-backup-.*\.tar$/);
-  ok('backup downloaded, named after the Android build', tar === 'freeabl-backup-SIM12345-android13-2023-06-05.tar', String(readdirSync(dl)));
+  ok('backup downloaded, named after the Android build', /^freeabl-backup-SIM12345-android13-2023-06-05-[0-9a-f]{8}\.tar$/.test(tar), String(readdirSync(dl)));
   ok('Android build shown', (await log()).includes('slot a: Android 13, security patch 2023-06-05'));
   await page.click('#btn-dump');
   await until('Firmware saved');
   const fw = await saved(/^freeabl-firmware-.*\.tar$/);
-  ok('firmware saved', fw === 'freeabl-firmware-SIM12345-android13-2023-06-05.tar', String(readdirSync(dl)));
+  ok('firmware saved', /^freeabl-firmware-SIM12345-android13-2023-06-05-[0-9a-f]{8}\.tar$/.test(fw), String(readdirSync(dl)));
   ok('firmware: userdata left out', (await log()).includes('Left out: userdata'));
   const proof = await page.$('#backup-proof');
   await proof.uploadFile(join(dl, tar));

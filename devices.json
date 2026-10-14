@@ -103,6 +103,11 @@
           "os_version": "13",
           "patch": "2025-01-05",
           "fingerprint": "MANGMI/MANGMI/AIR_X:14/AIR_X_user_20250919/hxh09191513:user/release-keys"
+        },
+        {
+          "os_version": "13",
+          "patch": "2025-01-05",
+          "fingerprint": "MANGMI/MANGMI/AIR_X:14/AIR_X_user_20260618/hxh06181729:user/release-keys"
         }
       ],
       "memory": "emmc",

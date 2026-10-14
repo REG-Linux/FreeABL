@@ -167,7 +167,8 @@ test('backup records the Android build; boot side and system side told apart', a
   assert.equal(x.bk.info.android.os_version, '13');
   assert.equal(x.bk.info.android.patch, '2023-06-05');
   assert.match(x.bk.info.android.vbmeta_sha256, /^[0-9a-f]{64}$/);
-  assert.equal(x.b.tarName, 'freeabl-backup-SIM12345-android13-2023-06-05.tar');
+  assert.match(x.b.tarName, /^freeabl-backup-SIM12345-android13-2023-06-05-[0-9a-f]{8}\.tar$/);
+  assert.ok(x.b.tarName.includes(x.bk.info.android.vbmeta_sha256.slice(0, 8)));
   const gki = await setup({ stockA: STOCK7, stockB: STOCK7, android: { a: { gki: true, patch: '2023-06-05' }, b: {} } }, { device: 'pockets' });
   assert.equal(gki.bk.info.android.patch, '2023-06-05');
   const split = await setup({ stockA: STOCK6, stockB: STOCK6, msmId: 0xce0e1,
@@ -260,7 +261,7 @@ test('firmware dump: both slots, read only, big partitions left out, usable as a
   const x = await setup({ stockA: STOCK7, stockB: STOCK7 }, { device: 'pockets' });
   const writes = x.sim.writes.length;
   const { plan, info, blob } = await dumpOf(x);
-  assert.equal(plan.name, 'freeabl-firmware-SIM12345-android13-2023-06-05.tar');
+  assert.match(plan.name, /^freeabl-firmware-SIM12345-android13-2023-06-05-[0-9a-f]{8}\.tar$/);
   assert.deepEqual(plan.skipped, ['userdata (65536 MiB)']);
   for (const p of ['abl_a', 'abl_b', 'xbl_a', 'xbl_b', 'vbmeta_a', 'vbmeta_system_b', 'boot_a']) assert.ok(info.firmware[p], p);
   assert.equal(x.sim.writes.length, writes);

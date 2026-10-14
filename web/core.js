@@ -361,9 +361,10 @@ export async function edlConnect(edl, dev, loader, untested, log) {
 }
 
 // file names: which Android build a backup or firmware file is from
+// two builds may share version and patch (Mangmi Air X): the vbmeta ID tells them apart, as in the CLI's folders
 const buildTag = (a) => {
   const os = a?.system_os_version || a?.os_version, patch = a?.system_patch || a?.patch;
-  return patch ? `-android${os || ''}-${patch}` : '';
+  return patch ? `-android${os || ''}-${patch}${a.vbmeta_sha256 ? `-${a.vbmeta_sha256.slice(0, 8)}` : ''}` : '';
 };
 
 /**
