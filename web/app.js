@@ -14,6 +14,7 @@ let proven = null;     // parsed backup the user proved they saved
 let sim = null;
 let adb = null;        // device in Android, connected over USB debugging
 let fb = null;         // the fastboot connection of the check
+let seen = null;       // what USB debugging showed: serial, chip serial
 
 function log(msg) {
   logEl.textContent += msg + '\n';
@@ -112,7 +113,8 @@ async function doAdb() {
   const dev = selection(false);
   log('== Device in Android (USB debugging)');
   adb = adbDriver();
-  await core.androidCheck(adb, dev, log);
+  seen = await core.androidCheck(adb, dev, log);
+  if (!SIM) usb.pinSerial(seen.serial);
   log('Read only: nothing was changed. Next: restart it in fastboot mode.');
 }
 
@@ -120,7 +122,8 @@ async function doAdbReboot(mode) {
   if (!adb) {
     log('== Device in Android (USB debugging)');
     adb = adbDriver();
-    await core.androidCheck(adb, selection(false), log);
+    seen = await core.androidCheck(adb, selection(false), log);
+    if (!SIM) usb.pinSerial(seen.serial);
   }
   await adb.reboot(mode);
   adb = null;
@@ -134,6 +137,9 @@ async function doCheck() {
   log(`== Check (${dev.name})`);
   fb = fastbootDriver();
   state = await core.check(fb, table, log);
+  if (!SIM) usb.pinSerial(state.serial);
+  // the chip serial seen in Android: the device put in EDL must have it
+  if (seen?.chipSerial && (!seen.serial || seen.serial === state.serial)) state.androidChipSerial = seen.chipSerial;
   log(`OK: device ${state.serial}, active slot ${state.slot}. Next: boot it to EDL and back up.`);
   if (!$('loader').files[0] && !SIM && !dev.loaderUrl) {
     log(`The backup needs the EDL loader: choose it now in section 1 (${dev.loaderHint || "the firehose loader from your device's firmware package"}).`);
@@ -286,7 +292,8 @@ async function init() {
   if (SIM) $('sim-banner').hidden = false;
   else if (!('usb' in navigator)) $('nousb').hidden = false;
   if (!SIM) usb = await import('./usb.js');
-  const reset = () => { state = null; edl = null; made = null; proven = null; sim = null; adb = null; fb = null; refresh(); };
+  const reset = () => { state = null; edl = null; made = null; proven = null; sim = null; adb = null; fb = null; seen = null;
+                         if (usb) usb.pinSerial(null); refresh(); };
   ['device', 'soc', 'memory', 'untested'].forEach((id) => $(id).addEventListener('change', reset));
   $('btn-adb').onclick = (e) => run(e.target, doAdb);
   $('btn-adb-fastboot').onclick = (e) => run(e.target, () => doAdbReboot('bootloader'));

@@ -279,6 +279,8 @@ export async function androidCheck(adb, dev, log) {
   await adb.connect();
   const p = await adb.props();
   log(`  ${p['ro.product.manufacturer'] || ''} ${p['ro.product.model'] || '?'} (${p['ro.product.board'] || '?'}), Android serial ${p['ro.serialno'] || '-'}`);
+  // Qualcomm's USB product name ends with the chip serial the boot ROM reports in EDL
+  const sn = /_SN:([0-9a-f]{8})$/i.exec(adb.usbProduct || '');
   const android = { os_version: p['ro.build.version.release'] || null, patch: p['ro.build.version.security_patch'] || null,
                     fingerprint: p['ro.system.build.fingerprint'] || null };
   log(`  ${androidLabel(android)}, slot ${(p['ro.boot.slot_suffix'] || '?').replace(/^_/, '')}, verified boot ${p['ro.boot.verifiedbootstate'] || '?'}`);
@@ -290,7 +292,7 @@ export async function androidCheck(adb, dev, log) {
   else if (!av.ok) log(`WARNING: FreeABL was not run on this Android version on the ${dev.name} yet: flashing will need tester mode`);
   else if (!av.exact) log('note: FreeABL was run on this Android version and patch, not on this exact build');
   else log('FreeABL was run on this exact Android build.');
-  return { props: p, android };
+  return { props: p, android, serial: adb.usbSerial || p['ro.serialno'] || null, chipSerial: sn ? sn[1].toLowerCase() : null };
 }
 
 export async function check(fb, table, log) {
@@ -348,7 +350,8 @@ const buildTag = (a) => {
  * (state.chipSerial), ties a backup to its device.
  */
 export function sameDevice({ bk = null, edl = null, state = null }) {
-  const chips = [['the backup', bk?.info.chip_serial], ['the device in EDL', edl?.chipSerial], ['the device in fastboot', state?.chipSerial]]
+  const chips = [['the backup', bk?.info.chip_serial], ['the device in EDL', edl?.chipSerial], ['the device in fastboot', state?.chipSerial],
+                 ['the device seen in Android', state?.androidChipSerial]]
     .filter(([, c]) => c);
   for (const [what, c] of chips.slice(1)) {
     if (c !== chips[0][1]) stop(`${what} is chip ${c}, ${chips[0][0]} chip ${chips[0][1]}: not the same device. Connect only the device you mean, and start again`);

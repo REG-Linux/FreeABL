@@ -363,3 +363,18 @@ test('EDL loader checked against the one validated on the device', async () => {
     assert.match(s2[0], /recognised/);
   }
 });
+
+test('the chip serial seen in Android must be the one in EDL', async () => {
+  const dev = core.resolveDevice(table, { device: 'pockets' });
+  const sim = new SimDevice({ stockA: STOCK7, stockB: STOCK7, chipSerial: 'aaaa0001' });
+  const seen = await core.androidCheck(sim.adb, dev, quiet);
+  assert.equal(seen.chipSerial, 'aaaa0001');
+  const state = { ...(await core.check(sim.fastboot, table, quiet)), androidChipSerial: seen.chipSerial };
+  // the other device is the one put in EDL
+  const other = new SimDevice({ stockA: STOCK7, stockB: STOCK7, chipSerial: 'bbbb0002' });
+  await core.edlConnect(other.edl, dev, new Uint8Array(1), false, quiet);
+  await assert.rejects(core.backup(other.edl, dev, state, null, quiet), /seen in Android is chip aaaa0001, the device in EDL chip bbbb0002: not the same device/);
+  await core.edlConnect(sim.edl, dev, new Uint8Array(1), false, quiet);
+  const b = await core.backup(sim.edl, dev, state, null, quiet);
+  assert.equal(b.info.chip_serial, 'aaaa0001');
+});

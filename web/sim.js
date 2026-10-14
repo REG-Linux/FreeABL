@@ -127,6 +127,8 @@ export class SimDevice {
   get adb() {
     let on = false;
     return {
+      usbSerial: 'ANDROID0001',
+      usbProduct: `SG_KALAMAP-QRD_CID:0437_SN:${this.chipSerial.toUpperCase()}`,
       connect: async () => { on = true; },
       props: async () => {
         if (!on) throw new Error('not connected');

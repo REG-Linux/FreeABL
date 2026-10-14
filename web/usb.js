@@ -49,4 +49,27 @@ export function edlDriver(log) {
   return edl;
 }
 
-export const webUsbAvailable = () => 'usb' in navigator;
+export const webUsbAvailable = () => typeof navigator !== 'undefined' && 'usb' in navigator;
+
+// Two devices look alike in the browser's device list. Once the device's serial is
+// known, every picker lists only that device (fastboot.js and ya-webadb ask with
+// their own filters: the serial is added to each).
+let wanted = null;
+if (typeof navigator !== 'undefined' && 'usb' in navigator) {
+  const request = navigator.usb.requestDevice.bind(navigator.usb);
+  navigator.usb.requestDevice = (opts = {}) => {
+    // not in EDL (05c6:9008): the boot ROM shows no serial; the chip serial is checked instead
+    const edlPick = opts.filters?.some((f) => f.vendorId === 0x05c6);
+    const filters = wanted && opts.filters && !edlPick ? opts.filters.map((f) => ({ ...f, serialNumber: wanted })) : opts.filters;
+    return request({ ...opts, filters }).catch((e) => {
+      if (wanted && /No device selected/i.test(String(e?.message || e))) {
+        const was = wanted;
+        wanted = null;
+        throw new Error(`no device with serial ${was} in this mode: if it shows another serial here, click again to choose from all devices`);
+      }
+      throw e;
+    });
+  };
+}
+/** List only the device with this USB serial in the pickers (null: all). */
+export function pinSerial(serial) { wanted = serial || null; }

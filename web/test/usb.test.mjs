@@ -259,3 +259,22 @@ test('wrong SoC caught from the chip ID over the real Sahara exchange', async ()
   const dev = core.resolveDevice(table, { device: 'pockets' });
   await assert.rejects(core.edlConnect(usb.edlDriver(quiet), dev, ph.loader, false, quiet), /MSM ID 0x8b0e1/);
 });
+
+test('device pickers list only the device whose serial is known, except in EDL', async () => {
+  const asked = [];
+  let found = true;
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, writable: true, value: { usb: {
+    requestDevice: async (o) => { asked.push(o.filters); if (!found) throw new Error('NotFoundError: No device selected.'); return {}; },
+  } } });
+  const u = await import('../usb.js?pin');      // a fresh copy, patching this navigator.usb
+  u.pinSerial('00314WHD01003717');
+  await navigator.usb.requestDevice({ filters: [{ classCode: 0xff, subclassCode: 0x42, protocolCode: 0x03 }] });
+  await navigator.usb.requestDevice({ filters: [{ vendorId: 0x05c6, productId: 0x9008 }] });
+  assert.deepEqual(asked[0], [{ classCode: 0xff, subclassCode: 0x42, protocolCode: 0x03, serialNumber: '00314WHD01003717' }]);
+  assert.deepEqual(asked[1], [{ vendorId: 0x05c6, productId: 0x9008 }]);
+  found = false;
+  await assert.rejects(navigator.usb.requestDevice({ filters: [{ classCode: 0xff }] }), /no device with serial 00314WHD01003717.*click again/);
+  found = true;
+  await navigator.usb.requestDevice({ filters: [{ classCode: 0xff }] });   // the pin is gone: every device listed
+  assert.deepEqual(asked[3], [{ classCode: 0xff }]);
+});

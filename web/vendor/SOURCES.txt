@@ -3,4 +3,4 @@ edl-qdl.mjs: web/src/edl-qdl.js + commaai/qdl.js d1e0683d3f66c6cb49b8ba07b03887b
 adb.mjs: web/src/adb-web.js + @yume-chan/adb 2.6.4, adb-daemon-webusb 2.3.2, adb-credential-web 2.1.0 (web/src/adb/package-lock.json)
 bd8283520de10c4cb39139f2f98297a420b39e456c3241db2c7322a82bd2a6db  fastboot.min.mjs
 98b4208f2fc3a50d4d08fcd4d0c3117edae79a325285615171bba4170e2c3809  edl-qdl.mjs
-5a6aaf4890aca2d9e0a61183c9a8ea275f6acc72d590c01e51b4dd4cf7e58f88  adb.mjs
+b56ee500305fe7591e915b6bd2f4f8d1d8ab67ebe6dbf87ccd614dd0a0ed3cee  adb.mjs

@@ -25,6 +25,10 @@ export class WebAdb {
     const manager = new AdbDaemonWebUsbDeviceManager(navigator.usb);
     const device = await manager.requestDevice();
     if (!device) throw new Error("ADB: no device chosen");
+    // the USB names: the serial, and the product name, which on Qualcomm devices ends
+    // with the chip serial number (..._SN:12650080) that the boot ROM reports in EDL
+    this.usbSerial = device.serial;
+    this.usbProduct = device.raw?.productName ?? device.name ?? "";
     const connection = await device.connect();
     this.log("If the device asks to allow USB debugging from this computer, allow it.");
     const transport = await AdbDaemonTransport.authenticate({
