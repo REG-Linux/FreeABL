@@ -1,0 +1,30 @@
+{
+  "_comment": "The FreeABL release the web page installs: pages.yml publishes these images next to the page (GitHub release downloads are not readable by web pages), checked against these hashes; the page checks them again.",
+  "tag": "v0.1.1",
+  "images": {
+    "sdm845": {
+      "name": "abl_signed-SDM845-ESP-r34.elf",
+      "sha256": "6f9bd1b3e0a7e6a05a3ae7212d7a4a6777be8f6a0e1c58b7a235e3be54ed8fe8"
+    },
+    "sm6115": {
+      "name": "abl_signed-SM6115-ESP-r34.elf",
+      "sha256": "8a6f35efdc5c14dc0fc2759b5b5d3fb38fcb69826526101478521e56e430bd9b"
+    },
+    "sm8250": {
+      "name": "abl_signed-SM8250-ESP-r34.elf",
+      "sha256": "3394ec55808361db9c9c0b9a4bed46e7189cbe05c6e2ac75cefcdb14b759809f"
+    },
+    "sm8550": {
+      "name": "abl_signed-SM8550-ESP-r34.elf",
+      "sha256": "b79d20dd178862003c835f826f7ffc125dd03b757686690fbebb5d66d8c30c8a"
+    },
+    "sm8650": {
+      "name": "abl_signed-SM8650-ESP-r34.elf",
+      "sha256": "6d1ec4bb5accb8449dc4cc05caee44d76aa001e937e2a4f0f31e3ad5f7aca791"
+    },
+    "sm8750": {
+      "name": "abl_signed-SM8750-ESP-r34.elf",
+      "sha256": "fc25f345ab8e44263e1e831274fdea49ee305ee1f96d26b97ba7b8031b3254b1"
+    }
+  }
+}

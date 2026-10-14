@@ -325,6 +325,16 @@ export async function check(fb, table, log) {
            chipSerial: v['chip-serial'] || null, time: new Date().toISOString() };
 }
 
+/** The release's FreeABL image for the device's SoC, fetched with get(url) and checked against release.json. */
+export async function releaseImage(release, dev, get, log) {
+  const i = release?.images?.[dev.soc];
+  if (!i) stop(`no FreeABL ${release?.tag || ''} image for ${dev.soc}: tick "Expert / tester mode" and choose an image`);
+  log(`Fetching FreeABL ${release.tag} for ${dev.soc} (${i.name})`);
+  const bytes = await get(`../images/${release.tag}/${i.name}`);
+  const sha = await checkImage(dev, i.name, bytes, `${i.sha256}  ${i.name}\n`, log);
+  return { bytes, sha };
+}
+
 /** The EDL loader against the one validated on the device: a fetched one must match. */
 export async function checkLoader(dev, bytes, fetched, log) {
   if (!dev.loaderSha256) return;

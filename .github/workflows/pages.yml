@@ -29,9 +29,24 @@ jobs:
         run: |
           mkdir -p _site/web
           cp devices.json _site/
-          cp -r web/index.html web/spike.html web/style.css web/app.js web/core.js web/sim.js web/usb.js web/vendor _site/web/
+          cp -r web/index.html web/spike.html web/style.css web/app.js web/core.js web/sim.js web/usb.js web/release.json web/vendor _site/web/
           printf '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=web/"><title>FreeABL Flasher</title><a href="web/">FreeABL Flasher</a>\n' > _site/index.html
           touch _site/.nojekyll
+      - name: The release's images next to the page, checked against web/release.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(python3 -c "import json; print(json.load(open('web/release.json'))['tag'])")
+          mkdir -p "_site/images/$tag"
+          gh release download "$tag" -R "${{ github.repository }}" -p 'abl_signed-*.elf' -D "_site/images/$tag"
+          python3 - "$tag" <<'EOF'
+          import hashlib, json, sys
+          r = json.load(open('web/release.json'))
+          for soc, i in r['images'].items():
+              h = hashlib.sha256(open(f"_site/images/{sys.argv[1]}/{i['name']}", 'rb').read()).hexdigest()
+              assert h == i['sha256'], f"{i['name']}: {h} is not {i['sha256']}"
+              print('ok', i['name'])
+          EOF
           find _site -type f | sort
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

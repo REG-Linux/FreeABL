@@ -6,7 +6,7 @@ import { SimDevice, signedElf } from './sim.js';
 const $ = (id) => document.getElementById(id);
 const SIM = new URLSearchParams(location.search).has('sim');
 const logEl = $('log');
-let table, usb;
+let table, usb, release;
 let state = null;      // from the fastboot check
 let edl = null;        // connected EDL session
 let made = null;       // backup made in this session
@@ -55,7 +55,7 @@ const fastbootDriver = () => (SIM ? simDevice().fastboot : usb.fastbootDriver(lo
 const adbDriver = () => (SIM ? simDevice().adb : usb.adbDriver(log));
 // the loader chosen, checked; else the one validated on the device, fetched and checked
 async function loaderBytes(dev) {
-  const chosen = await readFile($('loader'));
+  const chosen = (expert() || !dev.loaderUrl) ? await readFile($('loader')) : null;
   if (chosen) { await core.checkLoader(dev, chosen, false, log); return chosen; }
   if (SIM) return new Uint8Array(1);
   if (!dev.loaderUrl) return null;
@@ -77,11 +77,19 @@ async function edlSession(dev) {
   return edl;
 }
 
+const expert = () => $('untested').checked;
+async function fetchBytes(url) {
+  const r = await fetch(url).catch(() => null);
+  if (!r?.ok) throw new core.Stop(`cannot download ${url}: check the connection, or tick "Expert / tester mode" and choose the file`);
+  return new Uint8Array(await r.arrayBuffer());
+}
+
+// the release's image, fetched and checked; in expert mode the one chosen, if any
 async function image(dev) {
-  let bytes = await readFile($('image'));
-  let name = $('image').files[0]?.name;
-  if (!bytes && SIM) { bytes = signedElf(dev.mbn, 'freeabl'); name = core.imageName(dev.soc); }
-  if (!bytes) throw new core.Stop('choose the FreeABL image first');
+  if (SIM) return { bytes: signedElf(dev.mbn, 'freeabl'), sha: await core.sha256hex(signedElf(dev.mbn, 'freeabl')) };
+  if (!(expert() && $('image').files[0])) return core.releaseImage(release, dev, fetchBytes, log);
+  const bytes = await readFile($('image'));
+  const name = $('image').files[0].name;
   const sums = $('sums').files[0] ? await $('sums').files[0].text() : null;
   const sha = await core.checkImage(dev, name, bytes, sums, log);
   return { bytes, sha };
@@ -267,6 +275,10 @@ function refresh() {
     const dev = selection(false);
     note = { current: 'Validated with this build.', earlier: 'Validated with an earlier build only: needs tester mode.',
              none: 'Never run on this device: needs tester mode.' }[dev.validated];
+    const auto = [release?.images?.[dev.soc] && `FreeABL ${release.tag}`, dev.loaderUrl && 'the EDL loader'].filter(Boolean);
+    $('auto-note').textContent = auto.length && !expert() ? `${auto.join(' and ')} for this device are downloaded and checked automatically.` : '';
+    $('image-row').hidden = $('sums-row').hidden = !expert();
+    $('loader-row').hidden = !expert() && !!dev.loaderUrl;
     $('usb-name-note').textContent = dev.usbName ? `In the browser's device list, the ${dev.name} appears as ${dev.usbName}…` : '';
     $('loader-note').textContent = dev.loaderUrl
       ? `Loader: leave empty to fetch the one validated on this device (${dev.loaderHint}), or choose your own.`
@@ -286,6 +298,7 @@ function refresh() {
 
 async function init() {
   table = await (await fetch('../devices.json')).json();
+  release = await (await fetch('release.json')).json().catch(() => null);
   const dsel = $('device');
   for (const [id, d] of Object.entries(table.devices)) dsel.add(new Option(`${d.name} (${d.soc})`, id));
   dsel.add(new Option('Other device (testers)', 'other'));

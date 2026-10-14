@@ -387,3 +387,17 @@ test('a device picked by the wrong USB name is caught', async () => {
   await assert.rejects(core.androidCheck(adb, dev, quiet, table), /is an AYN Odin 2 Portal, but AYANEO Pocket S is selected/);
   await core.androidCheck(sim.adb, dev, quiet, table);    // its own name: fine
 });
+
+test('release image fetched next to the page and checked against release.json', async () => {
+  const dev = core.resolveDevice(table, { device: 'pockets' });
+  const release = JSON.parse(readFileSync(ROOT + 'web/release.json', 'utf8'));
+  assert.equal(release.images.sm8550.name, core.imageName('sm8550'));
+  const good = { ...release, images: { sm8550: { name: core.imageName('sm8550'), sha256: await core.sha256hex(FREE7) } } };
+  const urls = [];
+  const r = await core.releaseImage(good, dev, async (u) => { urls.push(u); return FREE7; }, quiet);
+  assert.deepEqual(urls, [`../images/${release.tag}/abl_signed-SM8550-ESP-r34.elf`]);
+  assert.equal(r.sha, await core.sha256hex(FREE7));
+  const bad = FREE7.slice(); bad[2000] ^= 1;
+  await assert.rejects(core.releaseImage(good, dev, async () => bad, quiet), /does not match the checksum/);
+  await assert.rejects(core.releaseImage({ tag: 'v9', images: {} }, dev, async () => FREE7, quiet), /Expert \/ tester mode/);
+});
