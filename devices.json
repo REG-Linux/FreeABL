@@ -97,8 +97,14 @@
       "usb_name": "-IDP_CID:041C",
       "soc": "sm6115",
       "mbn": 6,
-      "validated": "earlier",
-      "android": [],
+      "validated": "current",
+      "android": [
+        {
+          "os_version": "13",
+          "patch": "2025-01-05",
+          "fingerprint": "MANGMI/MANGMI/AIR_X:14/AIR_X_user_20250919/hxh09191513:user/release-keys"
+        }
+      ],
       "memory": "emmc",
       "msm_id": "0x14d0e1",
       "loader": "prog_firehose_ddr.elf",

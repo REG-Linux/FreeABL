@@ -144,7 +144,15 @@ test('tester mode', async () => {
   assert.ok(prefix(x.sim, 'abl_a', FREE7));
   const y = await setup({ stockA: STOCK7, stockB: STOCK7, msmId: 0x99e1 }, { device: 'pockets', untested: true });
   assert.equal(y.bk.info.msm_id, '0x99e1');
-  const z = await setup({ stockA: STOCK6, stockB: EMPTY, msmId: 0x14d0e1 }, { device: 'airx' });
+  // a device validated with an earlier build only (none is today): a patched table
+  const t = structuredClone(table);
+  t.devices.airx.validated = 'earlier';
+  const zdev = core.resolveDevice(t, { device: 'airx' });
+  const zsim = new SimDevice({ stockA: STOCK6, stockB: EMPTY, msmId: 0x14d0e1 });
+  const zst = await core.check(zsim.fastboot, t, quiet);
+  await core.edlConnect(zsim.edl, zdev, new Uint8Array(1), false, quiet);
+  const zb = await core.backup(zsim.edl, zdev, zst, null, quiet);
+  const z = { sim: zsim, dev: zdev, state: zst, bk: await core.loadBackup(zb.tar, zdev, zst) };
   await assert.rejects(core.flash(flashArgs(z, signedElf(6, 'f'))), /Tester mode/);
 });
 

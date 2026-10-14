@@ -121,7 +121,13 @@ function download(bytes, name) {
 async function adbConnect() {
   log('== Device in Android (USB debugging)');
   const a = adbDriver();
-  seen = await core.androidCheck(a, selection(false), log, table);
+  // the device waits for its owner to allow USB debugging: say so while it does
+  const nag = setInterval(() => log('Waiting for the device: on its screen, tap "Allow" (USB debugging from this computer).'), 20000);
+  try {
+    seen = await core.androidCheck(a, selection(false), log, table);
+  } finally {
+    clearInterval(nag);
+  }
   if (!SIM) usb.pinSerial(seen.serial, 'adb');
   adb = a;
 }

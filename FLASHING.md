@@ -24,7 +24,7 @@ end before you start, and read the [disclaimer](README.md#disclaimer).
 | `odin2portal` | AYN Odin 2 Portal | sm8550 | validated | `xbl_s_devprg_ns.melf` (from the AYANEO Pocket S firmware package; works on this device) |
 | `pockets` | AYANEO Pocket S | sm8550 | validated | `xbl_s_devprg_ns.melf` from the AYANEO Pocket S firmware package |
 | `pocketmax` | Mangmi Pocket Max | sm8250 | validated | `prog_firehose_ddr.elf` from the Mangmi Pocket Max firmware package |
-| `airx` | Mangmi Air X (MQ66) | sm6115 | earlier build only | the firehose loader from the Mangmi firmware package |
+| `airx` | Mangmi Air X (MQ66) | sm6115 | validated | `prog_firehose_ddr.elf` from the Mangmi Air X firmware package |
 
 "Earlier build only": FreeABL ran on this device, but not the current code yet.
 Flashing it needs `--untested` (see below). The sm8650 and sm8750 images build

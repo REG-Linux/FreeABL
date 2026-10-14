@@ -96,6 +96,17 @@ class Dev:
                            input=stdin, capture_output=True, text=True, env=env, cwd=self.dir)
         return r.returncode, r.stdout + r.stderr
 
+    def run_patched(self, patch, *args, stdin=''):
+        """The tool with its device table changed first (patch: Python on the module m)."""
+        env = dict(os.environ, FAKEDEV=self.dir, PATH=self.bin + os.pathsep + os.environ['PATH'], FREEABL_NO_FETCH='1')
+        env.pop('FASTBOOT', None)
+        env.pop('FREEABL_EDL', None)
+        code = (f"import importlib.util, sys\ns = importlib.util.spec_from_file_location('m', {TOOL!r})\n"
+                f"m = importlib.util.module_from_spec(s); s.loader.exec_module(m)\n{patch}\n"
+                f"sys.argv = ['freeabl-flash.py', '--backup-dir', {self.backups!r}] + {list(args)!r}\nm.main()")
+        r = subprocess.run([sys.executable, '-c', code], input=stdin, capture_output=True, text=True, env=env, cwd=self.dir)
+        return r.returncode, r.stdout + r.stderr
+
     def part(self, p):
         return open(os.path.join(self.dir, p), 'rb').read()
 
@@ -250,12 +261,14 @@ d.run('check')
 rc, out = d.run('backup', '-d', 'other', '--soc', 'sm8550', '--untested', *L(d))
 check('other: stock signature mismatch still refused', rc != 0 and 'signature format' in out, out)
 shutil.rmtree(d.dir)
+# a device validated with an earlier build only (none is today): the table patched
+EARLIER = "m.DEVICES['airx']['validated'] = 'earlier'"
 d = Dev(signed_elf(6, 'stock'), EMPTY, msm=0x14d0e1)
 d.run('check'); d.run('backup', '-d', 'airx', *L(d))
 img = d.image(signed_elf(6, 'free'), 'abl_signed-SM6115-ESP-r34.elf')
-rc, out = d.run('flash', '-d', 'airx', *L(d), '-i', img, stdin='FLASH-ABL_A\n')
+rc, out = d.run_patched(EARLIER, 'flash', '-d', 'airx', *L(d), '-i', img, stdin='FLASH-ABL_A\n')
 check('earlier-build device needs --untested', rc != 0 and '--untested' in out, out)
-rc, out = d.run('flash', '-d', 'airx', '--untested', *L(d), '-i', img, stdin='FLASH-UNTESTED-ABL_A\n')
+rc, out = d.run_patched(EARLIER, 'flash', '-d', 'airx', '--untested', *L(d), '-i', img, stdin='FLASH-UNTESTED-ABL_A\n')
 check('earlier-build device ok with --untested', rc == 0, out)
 shutil.rmtree(d.dir)
 
