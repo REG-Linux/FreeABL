@@ -401,3 +401,13 @@ test('release image fetched next to the page and checked against release.json', 
   await assert.rejects(core.releaseImage(good, dev, async () => bad, quiet), /does not match the checksum/);
   await assert.rejects(core.releaseImage({ tag: 'v9', images: {} }, dev, async () => FREE7, quiet), /Expert \/ tester mode/);
 });
+
+test('a serial changed by the bootloader: the chip serial says it is the same device', async () => {
+  const x = await setup({ stockA: STOCK7, stockB: STOCK7, chipSerial: 'aaaa0001', vars: { serialno: '00314WHD01003717' } }, { device: 'pockets' });
+  // FreeABL installed: it reports another serial, and the chip
+  const st = { ...x.state, serial: '446f5b70', chipSerial: 'aaaa0001' };
+  const bk = await core.loadBackup(x.b.tar, x.dev, st);
+  assert.equal(bk.info.serial, '00314WHD01003717');
+  await assert.rejects(core.loadBackup(x.b.tar, x.dev, { ...st, chipSerial: 'bbbb0002' }), /backup is for device 00314WHD01003717/);
+  await assert.rejects(core.loadBackup(x.b.tar, x.dev, { ...st, chipSerial: null }), /backup is for device/);
+});

@@ -54,7 +54,11 @@ into `~/FreeABL-backups/`, or pack a tool backup for the web page with
 - **The edl tool**, at the version we test with:
   `pip install git+https://github.com/bkerler/edl@9fab1fe3e7cd6f8dfa1e8e28e634aaeaf5b46b17`
   (a virtual environment, `python3 -m venv`, keeps it apart from system packages).
-  - On Linux, install its udev rules or run it with `sudo`.
+  - On Linux, install FreeABL's udev rule once (also for the web flasher): it lets
+    your user open the devices and keeps the kernel's `qcserial` driver off a
+    device in EDL:
+    `sudo cp tools/51-freeabl.rules /etc/udev/rules.d/ && sudo udevadm control --reload`,
+    then replug the device.
   - On macOS, install libusb first: `brew install libusb`.
   - On Windows, EDL needs the WinUSB driver: in EDL mode the device shows up as
     `QUSB__BULK` or `Qualcomm HS-USB QDLoader 9008`; install WinUSB on it with

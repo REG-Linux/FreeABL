@@ -1,0 +1,9 @@
+# FreeABL: let the logged-in user's browser (web flasher) and tools open the devices,
+# and keep the kernel's qcserial driver off devices in EDL. Install:
+#   sudo cp 51-freeabl.rules /etc/udev/rules.d/ && sudo udevadm control --reload
+# then unplug and replug the device.
+# Android (adb) and fastboot
+SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="18d1", MODE="0660", TAG+="uaccess"
+# EDL (05c6:9008): qcserial takes it as a modem port; release it. Modems are left alone.
+SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="05c6", ATTR{idProduct}=="9008", MODE="0660", TAG+="uaccess"
+ACTION=="add|bind", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_interface", DRIVER=="qcserial", ATTRS{idVendor}=="05c6", ATTRS{idProduct}=="9008", RUN+="/bin/sh -c 'echo -n %k > /sys/bus/usb/drivers/qcserial/unbind'"

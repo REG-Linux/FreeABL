@@ -425,14 +425,22 @@ def device_dir(args, st):
 
 
 def build_dirs(args, st):
-    """[(dir, backup.json)] of this device, newest first; the folder itself holds backups of earlier versions of this tool."""
-    top = device_dir(args, st)
+    """[(dir, backup.json)] of this device, newest first; the folder itself holds backups of earlier versions
+    of this tool. The serial is the bootloader's to report (AYANEO's newer one and FreeABL give the Pocket S
+    different ones): backups under another serial count when they record this device's chip serial."""
+    root = backup_root(args)
+    chip = st.get('chip_serial_fb') or st.get('chip_serial')
+    tops = [device_dir(args, st)] + ([os.path.join(root, x) for x in os.listdir(root)
+                                       if os.path.join(root, x) != device_dir(args, st)] if chip and os.path.isdir(root) else [])
     found = []
-    for d in [top] + ([os.path.join(top, x) for x in os.listdir(top)] if os.path.isdir(top) else []):
-        try:
-            found.append((d, json.load(open(os.path.join(d, 'backup.json')))))
-        except (OSError, ValueError):
-            pass
+    for top in tops:
+        for d in [top] + ([os.path.join(top, x) for x in os.listdir(top)] if os.path.isdir(top) else []):
+            try:
+                info = json.load(open(os.path.join(d, 'backup.json')))
+            except (OSError, ValueError):
+                continue
+            if top == tops[0] or info.get('chip_serial') == chip:
+                found.append((d, info))
     return sorted(found, key=lambda x: x[1].get('time', ''), reverse=True)
 
 

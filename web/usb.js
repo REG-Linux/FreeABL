@@ -17,7 +17,7 @@ function inUse(e, edl) {
   }
   if (!/claimInterface|claim interface|LIBUSB_ERROR_BUSY/i.test(m)) return e;
   return new Error('Another program is using the device. Close it, unplug and replug the device, and try again: '
-    + (edl ? 'on Linux the qcserial driver (sudo modprobe -r qcserial), ' : '')
+    + (edl ? 'on Linux the qcserial driver (install the udev rule: USB setup tab), ' : '')
     + `the adb server (adb kill-server), fastboot, QFIL, or another flasher tab. (${m})`);
 }
 

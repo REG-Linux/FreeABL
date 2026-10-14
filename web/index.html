@@ -144,13 +144,13 @@
     </ul>
     <h3>Linux</h3>
     <ul>
-      <li>Let your user open the devices: create <code>/etc/udev/rules.d/51-freeabl.rules</code> with
-        <pre>SUBSYSTEM=="usb", ATTR{idVendor}=="05c6", ATTR{idProduct}=="9008", MODE="0666"
-SUBSYSTEM=="usb", ATTR{idVendor}=="18d1", MODE="0666"</pre>
-        then <code>sudo udevadm control --reload</code> and reconnect the device.</li>
+      <li>Once per computer, install FreeABL's udev rule: it lets your user open the devices, and keeps the kernel's
+        <code>qcserial</code> driver off a device in EDL (it would take it as a modem port; real modems are left alone):
+        <pre>curl -fsSL https://raw.githubusercontent.com/REG-Linux/FreeABL/main/tools/51-freeabl.rules | sudo tee /etc/udev/rules.d/51-freeabl.rules
+sudo udevadm control --reload</pre>
+        then unplug and replug the device. (<code>sudo modprobe -r qcserial</code> does not last: the system loads it
+        again when the device enters EDL.)</li>
       <li>Close the adb server first (<code>adb kill-server</code>): it holds devices in fastboot mode.</li>
-      <li>EDL: the kernel's <code>qcserial</code> driver takes the device first. Unload it while you flash:
-        <code>sudo modprobe -r qcserial</code>.</li>
     </ul>
     <h3>macOS</h3>
     <p>No driver needed.</p>

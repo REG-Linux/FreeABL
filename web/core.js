@@ -429,9 +429,15 @@ export async function loadBackup(tar, dev, state) {
   const dir = jsonName.slice(0, -'backup.json'.length);
   const info = JSON.parse(new TextDecoder().decode(await files[jsonName]()));
   if (info.device !== dev.id || info.soc !== dev.soc) stop(`the backup was made for '${info.device}' (${info.soc}), not '${dev.id}' (${dev.soc})`);
+  // the serial is the bootloader's to report: AYANEO's newer one and FreeABL give the Pocket S
+  // different ones. The chip serial, when both sides have it, is the device.
   if (state && info.serial !== state.serial) {
-    stop(`the backup is for device ${info.serial}, the connected device is ${state.serial}. A vendor update can change the serial `
-         + '(seen on the AYANEO Pocket S): if this is the same device, make a new backup on the Android build it runs now');
+    const chip = state.chipSerial || state.androidChipSerial;
+    if (!(info.chip_serial && chip && info.chip_serial === chip)) {
+      stop(`the backup is for device ${info.serial}, the connected device is ${state.serial}. The serial can change with the bootloader `
+           + '(a vendor update, or FreeABL): if this is the same device, use a backup made with a later flasher (it records the chip), '
+           + 'or make a new backup on the Android build it runs now');
+    }
   }
   if (state && info.slot !== state.slot) stop('the active slot changed since the backup (an Android update?): make a new backup');
   const parts = {};

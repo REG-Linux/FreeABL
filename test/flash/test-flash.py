@@ -370,6 +370,15 @@ rc, out = d.run('restore', '-d', 'pockets', '--via', 'fastboot', stdin='RESTORE-
 check('restore over fastboot on another device refused', rc != 0 and 'not the same device' in out, out)
 shutil.rmtree(d.dir)
 
+# 17. a serial changed by the bootloader: the backup is found by the chip serial
+d = Dev(STOCK7, STOCK7, chip='aaaa0001', serialno='00314WHD01003717')
+d.run('check'); d.run('backup', '-d', 'pockets', *L(d))
+d.vars.update({'serialno': '446f5b70', 'chip-serial': 'aaaa0001', 'freeabl': 'yes'}); d.update('a', {})   # FreeABL now runs
+rc, out = d.run('check')
+rc, out = d.run('restore', '-d', 'pockets', '--via', 'fastboot', stdin='RESTORE-ABL_A\n')
+check('restore finds the backup filed under the old serial by its chip', rc == 0 and 'RESTORED abl_a' in out, out)
+shutil.rmtree(d.dir)
+
 # 14. firmware dump: read only, big partitions left out
 d = Dev(STOCK7, STOCK7)
 d.run('check')
