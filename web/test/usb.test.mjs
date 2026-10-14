@@ -227,7 +227,7 @@ test('install, update and restore through the real drivers (Pocket S)', async ()
 });
 
 test('install on the Odin (SDM845, Sahara 2)', async () => {
-  const ph = new FakePhone({ sahara: 2, msmId: 0x08b0e1, stockA: STOCK5, stockB: STOCK5,
+  const ph = new FakePhone({ sahara: 2, msmId: 0x08b0e1, stockA: STOCK5, stockB: STOCK5, android: { a: { os: '10', patch: '2020-04-05' } },
                              vars: { product: 'sdm845', variant: 'SDM UFS' } });
   const x = await install(ph, 'odin', STOCK5, FREE5);
   assert.equal(x.b.info.msm_id, '0x8b0e1');

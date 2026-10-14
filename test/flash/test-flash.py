@@ -182,7 +182,7 @@ d = Dev(STOCK7, STOCK7, msm=0x08b0e1)
 d.run('check')
 rc, out = d.run('backup', '-d', 'pockets', *L(d)); check('backup: MSM ID mismatch refused', rc != 0 and 'MSM ID' in out, out)
 shutil.rmtree(d.dir)
-d = Dev(STOCK5, STOCK5, msm=0x08b0e1)
+d = Dev(STOCK5, STOCK5, android=(dict(os_v='10', patch='2020-04-05'), {}), msm=0x08b0e1)   # the Odin's Android 10
 d.run('check')
 rc, out = d.run('backup', '-d', 'odin', *L(d)); check('backup: odin v5 ok', rc == 0, out)
 rc, out = d.run('flash', '-d', 'odin', *L(d), '-i', d.image(FREE7), stdin='FLASH-ABL_A\n')
