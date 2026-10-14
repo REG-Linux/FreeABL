@@ -16,7 +16,13 @@
       "soc": "sdm845",
       "mbn": 5,
       "validated": "current",
-      "android": [],
+      "android": [
+        {
+          "os_version": "10",
+          "patch": "2020-04-05",
+          "fingerprint": "qti/qssi/qssi:10/QKQ1.200517.002/Odin_M008041539:user/releasekey-keys"
+        }
+      ],
       "memory": "ufs",
       "msm_id": "0x8b0e1",
       "loader": "prog_firehose_ddr.elf",

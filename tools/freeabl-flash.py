@@ -37,7 +37,9 @@ ROOT = os.path.dirname(HERE)
 # given (REG-Linux/FreeABL-loaders, pinned commit), and the hash loaders are checked against.
 LOADERS = 'https://raw.githubusercontent.com/REG-Linux/FreeABL-loaders/%s/' % '158846ab6c2f1f33e8ea8c1d375f11ab0dce3219'
 DEVICES = {
-    'odin': dict(name='AYN Odin', soc='sdm845', mbn=5, validated='current', android=[],
+    'odin': dict(name='AYN Odin', soc='sdm845', mbn=5, validated='current',
+                 android=[dict(os_version='10', patch='2020-04-05',
+                               fingerprint='qti/qssi/qssi:10/QKQ1.200517.002/Odin_M008041539:user/releasekey-keys')],
                  memory='ufs', msm_id=0x08b0e1, loader='prog_firehose_ddr.elf',
                  loader_url=LOADERS + 'sdm845/ayn-odin/prog_firehose_ddr.elf',
                  loader_sha256='90ebb0851cad183e867fa56108757681d47f00f199faacfa1180cc434e7cea60',

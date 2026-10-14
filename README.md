@@ -76,7 +76,7 @@ over EDL, flashes the active slot only and verifies the copy:
 ./tools/freeabl-flash.py restore -d pockets --loader LOADER     # back to stock
 ```
 
-A web flasher with the same checks runs at <https://reg-linux.github.io/FreeABL/web/> (Chrome or Edge; source in [`web/`](web/README.md)). It was run in Chrome on the AYANEO Pocket S, the AYN Odin 2 Portal, the Mangmi Pocket Max and the Mangmi Air X: install, update, firmware dump, back to stock over fastboot and EDL.
+A web flasher with the same checks runs at <https://reg-linux.github.io/FreeABL/web/> (Chrome or Edge; source in [`web/`](web/README.md)). It was run in Chrome on every listed device (AYN Odin, AYN Odin 2 Portal, AYANEO Pocket S, Mangmi Pocket Max, Mangmi Air X): install, update, firmware dump, back to stock over fastboot and EDL.
 
 ## SD card
 
