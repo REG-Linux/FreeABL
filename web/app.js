@@ -301,8 +301,9 @@ function refresh() {
 }
 
 async function init() {
-  table = await (await fetch('../devices.json')).json();
-  release = await (await fetch('release.json')).json().catch(() => null);
+  // the device table and the release decide the checks: never a copy the browser kept
+  table = await (await fetch('../devices.json', { cache: 'no-cache' })).json();
+  release = await (await fetch('release.json', { cache: 'no-cache' })).json().catch(() => null);
   const dsel = $('device');
   for (const [id, d] of Object.entries(table.devices)) dsel.add(new Option(`${d.name} (${d.soc})`, id));
   dsel.add(new Option('Other device (testers)', 'other'));
