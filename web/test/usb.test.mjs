@@ -277,4 +277,11 @@ test('device pickers list only the device whose serial is known, except in EDL',
   found = true;
   await navigator.usb.requestDevice({ filters: [{ classCode: 0xff }] });   // the pin is gone: every device listed
   assert.deepEqual(asked[3], [{ classCode: 0xff }]);
+  // an empty EDL list is not the serial's fault: the browser's error, unchanged, and the pin stays
+  u.pinSerial('d6a14b97');
+  found = false;
+  await assert.rejects(navigator.usb.requestDevice({ filters: [{ vendorId: 0x05c6, productId: 0x9008 }] }), /^Error: NotFoundError: No device selected/);
+  found = true;
+  await navigator.usb.requestDevice({ filters: [{ classCode: 0xff }] });
+  assert.equal(asked.at(-1)[0].serialNumber, 'd6a14b97');
 });

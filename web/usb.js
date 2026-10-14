@@ -9,6 +9,12 @@ import { WebAdb } from './vendor/adb.mjs';
 function inUse(e, edl) {
   // qdl.js puts the browser's error in the cause
   const m = [e, e?.cause].filter(Boolean).map((x) => x.message ?? x).join(': ');
+  if (/state is in progress|transfer error|device (was )?disconnected|NetworkError: Device unavailable/i.test(m)) {
+    return new Error(`the device is restarting or busy: wait until it is fully up (or in EDL), then try again (${m})`);
+  }
+  if (edl && /No device selected/i.test(m)) {
+    return new Error('no device in EDL was chosen. Is it in EDL (black screen, shown as QUSB__BULK or 9008)? Put it in EDL first, then try again');
+  }
   if (!/claimInterface|claim interface|LIBUSB_ERROR_BUSY/i.test(m)) return e;
   return new Error('Another program is using the device. Close it, unplug and replug the device, and try again: '
     + (edl ? 'on Linux the qcserial driver (sudo modprobe -r qcserial), ' : '')
@@ -71,7 +77,7 @@ if (typeof navigator !== 'undefined' && 'usb' in navigator) {
     const edlPick = opts.filters?.some((f) => f.vendorId === 0x05c6);
     const filters = wanted && opts.filters && !edlPick ? opts.filters.map((f) => ({ ...f, serialNumber: wanted })) : opts.filters;
     return request({ ...opts, filters }).catch((e) => {
-      if (wanted && /No device selected/i.test(String(e?.message || e))) {
+      if (filters !== opts.filters && /No device selected/i.test(String(e?.message || e))) {
         const was = wanted;
         wanted = null;
         throw new Error(`no device with serial ${was} in this mode: if it shows another serial here, click again to choose from all devices`);

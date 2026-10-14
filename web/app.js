@@ -157,7 +157,8 @@ async function doCheck() {
 }
 
 async function doFbAndroid() {
-  await fb.reboot();
+  // the device leaves the bus while answering: a transfer error here is the restart
+  await fb.reboot().catch(() => {});
   fb = null;
   log('Android is starting. When it is up, restart it in EDL.');
 }
