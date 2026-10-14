@@ -45,6 +45,7 @@ try {
 
   await page.select('#device', 'pockets');
   ok('flash locked before anything', await page.$eval('#btn-flash', (b) => b.disabled));
+  ok('EDL restart locked before the fastboot check', await page.$eval('#btn-adb-edl', (b) => b.disabled));
   ok('file fields hidden by default', await page.$eval('#image-row', (e) => e.hidden) && await page.$eval('#loader-row', (e) => e.hidden));
   ok('says what is fetched', (await page.$eval('#auto-note', (e) => e.textContent)).includes('FreeABL v0.1.1 and the EDL loader'));
   await page.click('#untested');

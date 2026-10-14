@@ -117,22 +117,24 @@ function download(bytes, name) {
 }
 
 // --- install ----------------------------------------------------------------
-async function doAdb() {
-  const dev = selection(false);
+// kept only once connected: a cancelled device list leaves nothing half open
+async function adbConnect() {
   log('== Device in Android (USB debugging)');
-  adb = adbDriver();
-  seen = await core.androidCheck(adb, dev, log, table);
+  const a = adbDriver();
+  seen = await core.androidCheck(a, selection(false), log, table);
   if (!SIM) usb.pinSerial(seen.serial);
-  log('Read only: nothing was changed. Next: restart it in fastboot mode.');
+  adb = a;
+}
+
+async function doAdb() {
+  await adbConnect();
+  log('Read only: nothing was changed. Next: restart it in fastboot mode, for the check.');
 }
 
 async function doAdbReboot(mode) {
-  if (!adb) {
-    log('== Device in Android (USB debugging)');
-    adb = adbDriver();
-    seen = await core.androidCheck(adb, selection(false), log, table);
-    if (!SIM) usb.pinSerial(seen.serial);
-  }
+  // EDL comes after the fastboot check: the backup needs what it reads (slot, secure boot, battery)
+  if (mode === 'edl' && !state) throw new core.Stop('first the check in fastboot mode: "Restart in fastboot mode", then "Connect in fastboot mode and check"');
+  if (!adb) await adbConnect();
   await adb.reboot(mode);
   adb = null;
   log(mode === 'bootloader' ? 'Restarting in fastboot mode: when it shows the fastboot screen, use "Connect in fastboot mode and check".'
@@ -287,6 +289,7 @@ function refresh() {
   $('device-note').textContent = note;
   $('btn-backup').disabled = !state;
   $('btn-adb-fastboot').disabled = !adb;
+  $('btn-adb-edl').disabled = !state;
   $('btn-fb-android').disabled = !fb;
   $('backup-proof').disabled = !made;
   $('btn-dump').disabled = !made;
