@@ -60,7 +60,7 @@ DEVICES = {
                     loader_sha256='b15f7a65a05f510dd5aa077d13962a381622661863a6b8ddb4b5169fac4a4b2b',
                     loader_hint='xbl_s_devprg_ns.melf from the AYANEO Pocket S firmware package'),
     'pocketmax': dict(name='Mangmi Pocket Max', soc='sm8250', mbn=6, validated='earlier', android=[],
-                      memory='ufs', msm_id=None, loader='prog_firehose_ddr.elf',
+                      memory='ufs', msm_id=0x0ce0e1, loader='prog_firehose_ddr.elf',
                       loader_url=LOADERS + 'sm8250/mangmi-pocket-max/prog_firehose_ddr.elf',
                       loader_sha256='0e482b270c0c6d6f1eb20d6586fa4357beb8960330b128a5f374828e4faa59ea',
                       loader_hint='prog_firehose_ddr.elf from the Mangmi firmware package'),

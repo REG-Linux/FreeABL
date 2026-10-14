@@ -144,7 +144,7 @@ test('tester mode', async () => {
   assert.ok(prefix(x.sim, 'abl_a', FREE7));
   const y = await setup({ stockA: STOCK7, stockB: STOCK7, msmId: 0x99e1 }, { device: 'pockets', untested: true });
   assert.equal(y.bk.info.msm_id, '0x99e1');
-  const z = await setup({ stockA: STOCK6, stockB: EMPTY, msmId: 0x99 }, { device: 'pocketmax' });
+  const z = await setup({ stockA: STOCK6, stockB: EMPTY, msmId: 0xce0e1 }, { device: 'pocketmax' });
   await assert.rejects(core.flash(flashArgs(z, signedElf(6, 'f'))), /Tester mode/);
 });
 
@@ -162,7 +162,7 @@ test('backup records the Android build; boot side and system side told apart', a
   assert.equal(x.b.tarName, 'freeabl-backup-SIM12345-android13-2023-06-05.tar');
   const gki = await setup({ stockA: STOCK7, stockB: STOCK7, android: { a: { gki: true, patch: '2023-06-05' }, b: {} } }, { device: 'pockets' });
   assert.equal(gki.bk.info.android.patch, '2023-06-05');
-  const split = await setup({ stockA: STOCK6, stockB: STOCK6, msmId: 0x99,
+  const split = await setup({ stockA: STOCK6, stockB: STOCK6, msmId: 0xce0e1,
                               android: { a: { os: '11', patch: '2024-03-05', system: { os: '13', patch: '2025-03-05' } }, b: {} } },
                             { device: 'pocketmax' });
   assert.equal(core.androidLabel(split.bk.info.android), 'Android 13, security patch 2025-03-05 (boot side: Android 11, 2024-03-05)');
