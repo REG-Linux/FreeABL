@@ -184,10 +184,10 @@ rc, out = d.run('backup', '-d', 'pockets', *L(d)); check('backup: MSM ID mismatc
 shutil.rmtree(d.dir)
 d = Dev(STOCK5, STOCK5, msm=0x08b0e1)
 d.run('check')
-rc, out = d.run('backup', '-d', 'odin'); check('backup: odin v5 ok, no loader needed', rc == 0, out)
-rc, out = d.run('flash', '-d', 'odin', '-i', d.image(FREE7), stdin='FLASH-ABL_A\n')
+rc, out = d.run('backup', '-d', 'odin', *L(d)); check('backup: odin v5 ok', rc == 0, out)
+rc, out = d.run('flash', '-d', 'odin', *L(d), '-i', d.image(FREE7), stdin='FLASH-ABL_A\n')
 check('flash: v7 image refused on a v5 device', rc != 0 and 'signature format' in out, out)
-rc, out = d.run('flash', '-d', 'odin', '-i', d.image(FREE5, 'abl_signed-SDM845-ESP-r34.elf'), stdin='FLASH-ABL_A\n')
+rc, out = d.run('flash', '-d', 'odin', *L(d), '-i', d.image(FREE5, 'abl_signed-SDM845-ESP-r34.elf'), stdin='FLASH-ABL_A\n')
 check('flash: odin v5 image ok', rc == 0 and d.part('abl_a')[:len(FREE5)] == FREE5, out)
 shutil.rmtree(d.dir)
 
@@ -466,7 +466,8 @@ except SystemExit as e:
 check('fetched loader with another sha256 refused', refused)
 for k, v in ff.DEVICES.items():
     if v.get('loader_url'):
-        check(f'{k}: loader URL pinned to a commit', '/FreeABL-loaders/' in v['loader_url'] and len(v['loader_sha256']) == 64)
+        check(f'{k}: loader URL pinned to a commit', __import__('re').search(r'/(REG-Linux/FreeABL-loaders|bkerler/Loaders)/[0-9a-f]{40}/', v['loader_url'])
+              is not None and len(v['loader_sha256']) == 64)
 shutil.rmtree(lt)
 
 print(f"\n{'all passed' if not failures else f'{len(failures)} FAILED'}")

@@ -304,7 +304,9 @@ export async function androidCheck(adb, dev, log, table = null) {
   else if (!av.ok) log(`WARNING: FreeABL was not run on this Android version on the ${dev.name} yet: flashing will need tester mode`);
   else if (!av.exact) log('note: FreeABL was run on this Android version and patch, not on this exact build');
   else log('FreeABL was run on this exact Android build.');
-  return { props: p, android, serial: adb.usbSerial || p['ro.serialno'] || null, chipSerial: sn ? sn[1].toLowerCase() : null };
+  // a USB serial that names nothing (the AYN Odin's is "?") cannot narrow the device lists
+  const usbSerial = /^[?0\s]*$/.test(adb.usbSerial || '') ? null : adb.usbSerial;
+  return { props: p, android, serial: usbSerial, chipSerial: sn ? sn[1].toLowerCase() : null };
 }
 
 export async function check(fb, table, log) {

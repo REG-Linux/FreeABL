@@ -128,7 +128,7 @@ async function adbConnect() {
   } finally {
     clearInterval(nag);
   }
-  if (!SIM) usb.pinSerial(seen.serial, 'adb');
+  if (!SIM && seen.serial) usb.pinSerial(seen.serial, 'adb');
   adb = a;
 }
 
