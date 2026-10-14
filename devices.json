@@ -33,6 +33,11 @@
           "os_version": "13",
           "patch": "2024-01-01",
           "fingerprint": "qti/qssi/qssi:13/TKQ1.231222.001/Odin2Portal01172242:user/release-keys"
+        },
+        {
+          "os_version": "13",
+          "patch": "2024-01-01",
+          "fingerprint": "qti/qssi/qssi:13/TKQ1.231222.001/Odin2Portal03191820:user/release-keys"
         }
       ],
       "memory": "ufs",
@@ -53,6 +58,11 @@
           "os_version": "13",
           "patch": "2023-06-05",
           "fingerprint": "qti/qssi/qssi:13/TKQ1.230811.002/2840:user/release-keys"
+        },
+        {
+          "os_version": "13",
+          "patch": "2023-06-05",
+          "fingerprint": "qti/qssi/qssi:13/TKQ1.230811.002/scm07080903:user/release-keys"
         }
       ],
       "memory": "ufs",
