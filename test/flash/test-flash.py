@@ -62,7 +62,7 @@ class Dev:
             os.symlink(os.path.join(HERE, 'fakedev.py'), os.path.join(self.bin, t))
         self.vars = dict(serialno='TEST1234', unlocked='yes', secure='no', product='kalama',
                          variant='SGP UFS', **{'current-slot': 'a', 'battery-voltage': '4100'},
-                         msm=0x2520e1)
+                         msm=0x1f20e1)
         self.vars.update(v)
         self.vars = {k: x for k, x in self.vars.items() if x is not None}
         self.vars['parts'] = ['abl_a', 'abl_b', 'xbl_a', 'xbl_b']

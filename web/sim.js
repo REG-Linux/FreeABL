@@ -66,7 +66,7 @@ export function bootHeader(os = '13', patch = '2023-06') {
 }
 
 export class SimDevice {
-  constructor({ stockA, stockB, vars = {}, msmId = 0x2520e1, critical = false, corrupt = false,
+  constructor({ stockA, stockB, vars = {}, msmId = 0x1f20e1, critical = false, corrupt = false,
                 android = { a: {}, b: {} }, chipSerial = '5e1a1234' } = {}) {
     this.chipSerial = chipSerial;
     this.vars = { serialno: 'SIM12345', unlocked: 'yes', secure: 'no', product: 'kalama', variant: 'SGP UFS',

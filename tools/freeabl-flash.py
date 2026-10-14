@@ -51,7 +51,7 @@ DEVICES = {
     'pockets': dict(name='AYANEO Pocket S', soc='sm8550', mbn=7, validated='current',
                     android=[dict(os_version='13', patch='2023-06-05',
                                   fingerprint='qti/qssi/qssi:13/TKQ1.230811.002/2840:user/release-keys')],
-                    memory='ufs', msm_id=0x2520e1, loader='xbl_s_devprg_ns.melf',
+                    memory='ufs', msm_id=0x1f20e1, loader='xbl_s_devprg_ns.melf',
                     loader_url=LOADERS + 'sm8550/ayaneo-pocket-s/xbl_s_devprg_ns.melf',
                     loader_sha256='b15f7a65a05f510dd5aa077d13962a381622661863a6b8ddb4b5169fac4a4b2b',
                     loader_hint='xbl_s_devprg_ns.melf from the AYANEO Pocket S firmware package'),

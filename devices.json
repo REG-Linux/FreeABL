@@ -54,7 +54,7 @@
         }
       ],
       "memory": "ufs",
-      "msm_id": "0x2520e1",
+      "msm_id": "0x1f20e1",
       "loader": "xbl_s_devprg_ns.melf",
       "loader_url": "https://raw.githubusercontent.com/REG-Linux/FreeABL-loaders/233f143c9221b071bc1adb8e6484b23a1cbc4a20/sm8550/ayaneo-pocket-s/xbl_s_devprg_ns.melf",
       "loader_sha256": "b15f7a65a05f510dd5aa077d13962a381622661863a6b8ddb4b5169fac4a4b2b",

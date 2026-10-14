@@ -40,9 +40,9 @@ test('Sahara 3 (SM8550): chip ID, read, write abl_a only, reset', async () => {
   const ph = attach(new FakePhone({ stockA: STOCK7, stockB: new Uint8Array(0) }).plug('edl'));
   const edl = usb.edlDriver(quiet);
   const { msmId, chipSerial } = await edl.connect(ph.loader, 'ufs');
-  assert.equal(msmId, 0x2520e1);
+  assert.equal(msmId, 0x1f20e1);
   assert.equal(chipSerial, '1056a040');
-  assert.deepEqual(edl.chipInfo, { hwid: '002520e100510000', pkHash: '9823c68bf148113f5be92310de6cbc2e84e2aef962eeded50dc51717feebfae3' });
+  assert.deepEqual(edl.chipInfo, { hwid: '001f20e100510000', pkHash: '9823c68bf148113f5be92310de6cbc2e84e2aef962eeded50dc51717feebfae3' });
   assert.deepEqual([...new Set(ph.helloVersions)], [3], 'answers the hello with the device version');
   const a = await edl.read('abl_a');
   assert.equal(a.length, 1 << 20);
@@ -137,7 +137,7 @@ test('slow device: late replies are waited for, never lost', async () => {
   // each reply comes after qdl.js's own timeouts (1 s hello, 1-3 s firehose, 2 s data)
   const ph = attach(new FakePhone({ stockA: STOCK7, lag: { hello: 1500, configure: 4500, read: 2500, program: 4500 } }).plug('edl'));
   const edl = usb.edlDriver(quiet);
-  assert.equal((await edl.connect(ph.loader, 'ufs')).msmId, 0x2520e1);
+  assert.equal((await edl.connect(ph.loader, 'ufs')).msmId, 0x1f20e1);
   ph.lag.read = 0;
   const { lun, start } = await edl.locate('abl_a');
   ph.lag.read = 2500;

@@ -372,7 +372,7 @@ function concat(parts) {
 
 // --- phone -------------------------------------------------------------------
 export class FakePhone {
-  constructor({ sahara = 3, msmId = 0x2520e1, hwidTop = 0, serial = 0x1056a040, chipIdFails = false, commandMode = true,
+  constructor({ sahara = 3, msmId = 0x1f20e1, hwidTop = 0, serial = 0x1056a040, chipIdFails = false, commandMode = true,
                 memory = 'ufs', loader = new Uint8Array(9000).map((_, i) => (i * 7) & 0xff), maxPayload = 1048576,
                 configureLogs = true, critical = false, corrupt = false, lag = {}, busy = false, android = { a: {}, b: {} },
                 startupLog = 500, pkHash = '9823c68bf148113f5be92310de6cbc2e84e2aef962eeded50dc51717feebfae3', vars = {}, stockA, stockB } = {}) {
