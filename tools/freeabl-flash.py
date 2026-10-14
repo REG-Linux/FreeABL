@@ -373,6 +373,16 @@ def fb_android():
     return a if a['os_version'] or a['vbmeta_sha256'] else None
 
 
+def build_name(a):
+    """The build name in the fingerprint: two builds often share version and patch."""
+    parts = ((a or {}).get('fingerprint') or '').split(':')
+    return parts[1].split('/')[1] if len(parts) > 1 and '/' in parts[1] else None
+
+
+def with_build(a):
+    return android_label(a) + (f", build {build_name(a)}" if build_name(a) else '')
+
+
 def android_label(a):
     if not a:
         return 'Android version not known'
@@ -743,8 +753,8 @@ def load_backup(args, dev, st, android=None):
                 pick, same = (d, info), True
                 break
         if not pick and all(same_build(i.get('android'), android) is False for _, i in found):
-            have = '; '.join(f"{android_label(i.get('android'))} in {d}" for d, i in found)
-            die(f"the device runs {android_label(android)} (an Android update since?), and the backups are "
+            have = '; '.join(f"{with_build(i.get('android'))} in {d}" for d, i in found)
+            die(f"the device runs {with_build(android)} (an Android update since?), and the backups are "
                 f"from other builds: {have}. Their bootloader may not start this Android. Make a backup on "
                 f"this build ('backup'), or restore with your vendor's firmware package")
     if not pick:

@@ -195,6 +195,11 @@ export async function fastbootAndroid(fb) {
   return a.os_version || a.vbmeta_sha256 ? a : null;
 }
 
+// the build name in the fingerprint (brand/product/device:release/BUILD/incremental:type/tags): two
+// builds often share version and patch (Mangmi Air X: AIR_X_user_20250919, AIR_X_user_20260618)
+export const buildName = (a) => (a?.fingerprint || '').split(':')[1]?.split('/')[1] || null;
+const withBuild = (a) => `${androidLabel(a)}${buildName(a) ? `, build ${buildName(a)}` : ''}`;
+
 export function androidLabel(a) {
   if (!a) return 'Android version not known';
   const os = a.system_os_version || a.os_version, patch = a.system_patch || a.patch;
@@ -536,7 +541,7 @@ export async function restore({ via, edl, fb, state, bk, confirm, log }) {
   const same = sameBuild(was, now);
   let note = '';
   if (same === false) {
-    stop(`this backup was made on ${androidLabel(was)}; the device now runs ${androidLabel(now)} (an Android update since?). `
+    stop(`this backup was made on ${withBuild(was)}; the device now runs ${withBuild(now)} (an Android update since?). `
          + 'Its bootloader may not start this Android. Use the backup or firmware file you made on this Android build (your latest one).');
   }
   if (same === null) {

@@ -184,7 +184,7 @@ test('restore over EDL refuses a backup from another Android build', async () =>
   // an update that came back to slot a (two updates) brought a new build
   x.sim.androidUpdate('a', { patch: '2025-02-05' });
   const r = { via: 'edl', edl: x.sim.edl, state: x.state, bk: x.bk, confirm: typing('RESTORE-ABL_A'), log: quiet };
-  await assert.rejects(core.restore(r), /made on Android 13, security patch 2023-06-05; the device now runs Android 13, security patch 2025-02-05/);
+  await assert.rejects(core.restore(r), /made on Android 13, security patch 2023-06-05, build TKQ1.230811.002; the device now runs Android 13, security patch 2025-02-05, build TKQ1.2025-02-05/);
   assert.ok(prefix(x.sim, 'abl_a', FREE7));
   // the backup made on this build restores
   x.sim.parts.abl_a.set(STOCK7);
