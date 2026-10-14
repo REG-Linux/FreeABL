@@ -30,13 +30,13 @@ Based on CodeLinaro edk2 `uefi.lnx.5.0.r34-rel`, in the
 |---|---|---|---|
 | sdm845 | v5 | AYN Odin | Odin UFS/SD layouts, stock Android |
 | sm6115 | v6 | Mangmi Air X (MQ66) \* | MQ66 and MQ65 factory images |
-| sm8250 | v6 | Mangmi Pocket Max \* | Pocket Max dump |
+| sm8250 | v6 | Mangmi Pocket Max | Pocket Max dump |
 | sm8550 | v7 | AYANEO Pocket S (G3x Gen 2), AYN Odin 2 Portal (QCS8550) | AYANEO Pocket S build |
 | sm8650 | v7 | - | build only |
 | sm8750 | v7 | - | build only |
 
 \* Validated with an earlier FreeABL build; re-testing with the current code is
-pending. The SDM845 and SM8550 devices were validated with the current code.
+pending. The SDM845, SM8250 and SM8550 devices were validated with the current code.
 
 The signature is a test signature: the device's bootloader must be unlocked
 (no secure boot fused).
@@ -77,7 +77,7 @@ over EDL, flashes the active slot only and verifies the copy:
 ./tools/freeabl-flash.py restore -d pockets --loader LOADER     # back to stock
 ```
 
-A web flasher with the same checks runs at <https://reg-linux.github.io/FreeABL/web/> (Chrome or Edge; source in [`web/`](web/README.md)). Its steps ran on an Odin 2 Portal outside the browser; it has not yet been used in a browser on a device.
+A web flasher with the same checks runs at <https://reg-linux.github.io/FreeABL/web/> (Chrome or Edge; source in [`web/`](web/README.md)). It was run in Chrome on the AYANEO Pocket S, the AYN Odin 2 Portal and the Mangmi Pocket Max: install, update, firmware dump, back to stock over fastboot and EDL.
 
 ## SD card
 
