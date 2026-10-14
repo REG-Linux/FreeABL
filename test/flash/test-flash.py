@@ -379,6 +379,15 @@ rc, out = d.run('restore', '-d', 'pockets', '--via', 'fastboot', stdin='RESTORE-
 check('restore finds the backup filed under the old serial by its chip', rc == 0 and 'RESTORED abl_a' in out, out)
 shutil.rmtree(d.dir)
 
+# 18. Sahara 3 output of the edl tool: chip ID and chip serial read (64-bit serial cut to the chip's)
+d = Dev(STOCK7, STOCK7, sahara=3, chip='77bf0381')
+d.run('check')
+rc, out = d.run('backup', '-d', 'pockets', *L(d))
+info = list(bjson(d).values())[0]
+check('Sahara 3: MSM ID seen and checked, chip serial 77bf0381', rc == 0 and 'MSM ID not seen' not in out
+      and info['msm_id'] == '0x1f20e1' and info['chip_serial'] == '77bf0381', out + str(info))
+shutil.rmtree(d.dir)
+
 # 14. firmware dump: read only, big partitions left out
 d = Dev(STOCK7, STOCK7)
 d.run('check')

@@ -54,8 +54,14 @@ opts = [a for a in args if a.startswith('--')]
 args = [a for a in args if not a.startswith('--')]
 loaded = os.path.join(D, '.loaded')
 if not os.path.exists(loaded):
-    print(f"HWID:              0x{V['msm']:08x}00000000 (MSM_ID:0x{V['msm']:08x},OEM_ID:0x0000,MODEL_ID:0x0000)")
-    print(f"- Chip Serial Number : {V.get('chip', '1234abcd')}")
+    if V.get('sahara') == 3:        # as the edl tool prints it for a Sahara 3 device (AYANEO Pocket S)
+        print(f"sahara - - Chip Serial Number : 437{V.get('chip', '1234abcd')}")
+        print("sahara - - Chip Identifier V3 : 00020000")
+        print(f"sahara - - MSM HWID : 0x{V['msm']:x} | model_id:0x0000 | oem_id:0000")
+        print("sahara - - OEM PKHASH : 00000000")
+    else:
+        print(f"HWID:              0x{V['msm']:08x}00000000 (MSM_ID:0x{V['msm']:08x},OEM_ID:0x0000,MODEL_ID:0x0000)")
+        print(f"- Chip Serial Number : {V.get('chip', '1234abcd')}")
     open(loaded, 'w').close()
 cmd = args[0]
 # layout as the edl tool prints it (offsets in bytes); UFS, 4096-byte sectors

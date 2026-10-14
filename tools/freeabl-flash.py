@@ -162,15 +162,19 @@ def edl_run(dev, loader, *args, memory=True):
     r = subprocess.run(cmd, capture_output=True, text=True)
     out = r.stdout + r.stderr
     # the MSM ID and the chip serial are only shown on the first connection after EDL entry: keep them
-    m = re.search(r'MSM_ID:0x([0-9a-fA-F]+)', out)
-    c = re.search(r'Chip Serial Number\s*:\s*([0-9a-fA-F]+)', out)
+    # Sahara 2: "HWID: 0x...(MSM_ID:0x...)"; Sahara 3: "- MSM HWID : 0x1f20e1 | ..."
+    clean = re.sub(r'\x1b\[[0-9;]*m', '', out)
+    m = re.search(r'MSM_ID:0x([0-9a-fA-F]+)', clean) or re.search(r'MSM HWID\s*:\s*0x([0-9a-fA-F]+)', clean)
+    # the edl tool reads the serial as 64 bits on Sahara 3 ("43777bf0381": the CID 0437 above
+    # the chip serial): the chip serial is the low 32 bits, as the boot ROM and FreeABL give it
+    c = re.search(r'Chip Serial Number\s*:\s*(?:0x)?([0-9a-fA-F]+)', clean)
     if (m or c) and STATE_FILE and os.path.isfile(STATE_FILE):
         try:
             st = json.load(open(STATE_FILE))
             if m:
                 st['msm_id'] = int(m.group(1), 16)
             if c:
-                st['chip_serial'] = c.group(1).lower().rjust(8, '0')
+                st['chip_serial'] = c.group(1).lower()[-8:].rjust(8, '0')
             json.dump(st, open(STATE_FILE, 'w'), indent=1)
         except (OSError, ValueError):
             pass
