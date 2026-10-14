@@ -35,11 +35,11 @@ ROOT = os.path.dirname(HERE)
 # --untested. Empty: none recorded yet, not checked.
 # loader_url / loader_sha256: where the EDL loader is fetched when --loader is not
 # given (REG-Linux/FreeABL-loaders, pinned commit), and the hash loaders are checked against.
-LOADERS = 'https://raw.githubusercontent.com/REG-Linux/FreeABL-loaders/%s/' % '233f143c9221b071bc1adb8e6484b23a1cbc4a20'
+LOADERS = 'https://raw.githubusercontent.com/REG-Linux/FreeABL-loaders/%s/' % '158846ab6c2f1f33e8ea8c1d375f11ab0dce3219'
 DEVICES = {
     'odin': dict(name='AYN Odin', soc='sdm845', mbn=5, validated='current', android=[],
-                 memory='ufs', msm_id=0x08b0e1, loader='0008e0e100000000_afca69d4235117e5_fhprg.bin',
-                 loader_url='https://raw.githubusercontent.com/bkerler/Loaders/6c416255056a178f54ccd7ee9b67d04a5bdfa8e6/qualcomm/factory/sdm845_sdm850_sda845/0008e0e100000000_afca69d4235117e5_fhprg.bin',
+                 memory='ufs', msm_id=0x08b0e1, loader='prog_firehose_ddr.elf',
+                 loader_url=LOADERS + 'sdm845/ayn-odin/prog_firehose_ddr.elf',
                  loader_sha256='90ebb0851cad183e867fa56108757681d47f00f199faacfa1180cc434e7cea60',
                  loader_hint='the Qualcomm factory SDM845 loader (bkerler/Loaders: qualcomm/factory/sdm845_sdm850_sda845)'),
     'odin2portal': dict(name='AYN Odin 2 Portal', soc='sm8550', mbn=7, validated='current',

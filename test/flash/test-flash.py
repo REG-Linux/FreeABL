@@ -466,7 +466,7 @@ except SystemExit as e:
 check('fetched loader with another sha256 refused', refused)
 for k, v in ff.DEVICES.items():
     if v.get('loader_url'):
-        check(f'{k}: loader URL pinned to a commit', __import__('re').search(r'/(REG-Linux/FreeABL-loaders|bkerler/Loaders)/[0-9a-f]{40}/', v['loader_url'])
+        check(f'{k}: loader URL pinned to a commit', __import__('re').search(r'/REG-Linux/FreeABL-loaders/[0-9a-f]{40}/', v['loader_url'])
               is not None and len(v['loader_sha256']) == 64)
 shutil.rmtree(lt)
 

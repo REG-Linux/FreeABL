@@ -20,7 +20,7 @@ end before you start, and read the [disclaimer](README.md#disclaimer).
 
 | `-d` | Device | SoC | Status | EDL loader |
 |---|---|---|---|---|
-| `odin` | AYN Odin | sdm845 | validated | the Qualcomm factory SDM845 loader, from bkerler/Loaders |
+| `odin` | AYN Odin | sdm845 | validated | the Qualcomm factory SDM845 loader (as in bkerler/Loaders) |
 | `odin2portal` | AYN Odin 2 Portal | sm8550 | validated | `xbl_s_devprg_ns.melf` (from the AYANEO Pocket S firmware package; works on this device) |
 | `pockets` | AYANEO Pocket S | sm8550 | validated | `xbl_s_devprg_ns.melf` from the AYANEO Pocket S firmware package |
 | `pocketmax` | Mangmi Pocket Max | sm8250 | validated | `prog_firehose_ddr.elf` from the Mangmi Pocket Max firmware package |

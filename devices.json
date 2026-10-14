@@ -1,5 +1,5 @@
 {
-  "_comment": "Device table shared by tools/freeabl-flash.py (embedded copy, checked by test/flash/test-flash.py) and web/. validated: current = this code on this device, earlier = an earlier build only. mbn = signature format of the stock and FreeABL ABL. msm_id = Sahara MSM ID seen on the device (null = not recorded). loader_hint_web: shown by the web page instead of loader_hint (the web page has no loader collection). android = Android builds FreeABL was run on, boot side as the flashers read it ({os_version, patch, fingerprint}); another version or patch month needs tester mode, another build of the same month gets a note; empty = none recorded yet, not checked. loader_url / loader_sha256: where the flashers fetch the EDL loader when none is given (REG-Linux/FreeABL-loaders or bkerler/Loaders, pinned commit), and the hash every loader is checked against. usb_name: how the device appears in the browser's device list in Android with USB debugging (the start of its USB product name), shown to tell devices apart.",
+  "_comment": "Device table shared by tools/freeabl-flash.py (embedded copy, checked by test/flash/test-flash.py) and web/. validated: current = this code on this device, earlier = an earlier build only. mbn = signature format of the stock and FreeABL ABL. msm_id = Sahara MSM ID seen on the device (null = not recorded). loader_hint_web: shown by the web page instead of loader_hint (the web page has no loader collection). android = Android builds FreeABL was run on, boot side as the flashers read it ({os_version, patch, fingerprint}); another version or patch month needs tester mode, another build of the same month gets a note; empty = none recorded yet, not checked. loader_url / loader_sha256: where the flashers fetch the EDL loader when none is given (REG-Linux/FreeABL-loaders, pinned commit), and the hash every loader is checked against. usb_name: how the device appears in the browser's device list in Android with USB debugging (the start of its USB product name), shown to tell devices apart.",
   "soc_mbn": {
     "sdm845": 5,
     "sm6115": 6,
@@ -19,8 +19,8 @@
       "android": [],
       "memory": "ufs",
       "msm_id": "0x8b0e1",
-      "loader": "0008e0e100000000_afca69d4235117e5_fhprg.bin",
-      "loader_url": "https://raw.githubusercontent.com/bkerler/Loaders/6c416255056a178f54ccd7ee9b67d04a5bdfa8e6/qualcomm/factory/sdm845_sdm850_sda845/0008e0e100000000_afca69d4235117e5_fhprg.bin",
+      "loader": "prog_firehose_ddr.elf",
+      "loader_url": "https://raw.githubusercontent.com/REG-Linux/FreeABL-loaders/158846ab6c2f1f33e8ea8c1d375f11ab0dce3219/sdm845/ayn-odin/prog_firehose_ddr.elf",
       "loader_sha256": "90ebb0851cad183e867fa56108757681d47f00f199faacfa1180cc434e7cea60",
       "loader_hint": "the Qualcomm factory SDM845 loader (bkerler/Loaders: qualcomm/factory/sdm845_sdm850_sda845)"
     },
@@ -45,7 +45,7 @@
       "memory": "ufs",
       "msm_id": "0x2520e1",
       "loader": "xbl_s_devprg_ns.melf",
-      "loader_url": "https://raw.githubusercontent.com/REG-Linux/FreeABL-loaders/233f143c9221b071bc1adb8e6484b23a1cbc4a20/sm8550/ayaneo-pocket-s/xbl_s_devprg_ns.melf",
+      "loader_url": "https://raw.githubusercontent.com/REG-Linux/FreeABL-loaders/158846ab6c2f1f33e8ea8c1d375f11ab0dce3219/sm8550/ayaneo-pocket-s/xbl_s_devprg_ns.melf",
       "loader_sha256": "b15f7a65a05f510dd5aa077d13962a381622661863a6b8ddb4b5169fac4a4b2b",
       "loader_hint": "xbl_s_devprg_ns.melf from the AYANEO Pocket S firmware package (works on this device)"
     },
@@ -70,7 +70,7 @@
       "memory": "ufs",
       "msm_id": "0x1f20e1",
       "loader": "xbl_s_devprg_ns.melf",
-      "loader_url": "https://raw.githubusercontent.com/REG-Linux/FreeABL-loaders/233f143c9221b071bc1adb8e6484b23a1cbc4a20/sm8550/ayaneo-pocket-s/xbl_s_devprg_ns.melf",
+      "loader_url": "https://raw.githubusercontent.com/REG-Linux/FreeABL-loaders/158846ab6c2f1f33e8ea8c1d375f11ab0dce3219/sm8550/ayaneo-pocket-s/xbl_s_devprg_ns.melf",
       "loader_sha256": "b15f7a65a05f510dd5aa077d13962a381622661863a6b8ddb4b5169fac4a4b2b",
       "loader_hint": "xbl_s_devprg_ns.melf from the AYANEO Pocket S firmware package"
     },
@@ -90,7 +90,7 @@
       "memory": "ufs",
       "msm_id": "0xce0e1",
       "loader": "prog_firehose_ddr.elf",
-      "loader_url": "https://raw.githubusercontent.com/REG-Linux/FreeABL-loaders/233f143c9221b071bc1adb8e6484b23a1cbc4a20/sm8250/mangmi-pocket-max/prog_firehose_ddr.elf",
+      "loader_url": "https://raw.githubusercontent.com/REG-Linux/FreeABL-loaders/158846ab6c2f1f33e8ea8c1d375f11ab0dce3219/sm8250/mangmi-pocket-max/prog_firehose_ddr.elf",
       "loader_sha256": "0e482b270c0c6d6f1eb20d6586fa4357beb8960330b128a5f374828e4faa59ea",
       "loader_hint": "prog_firehose_ddr.elf from the Mangmi Pocket Max firmware package"
     },
@@ -115,7 +115,7 @@
       "memory": "emmc",
       "msm_id": "0x14d0e1",
       "loader": "prog_firehose_ddr.elf",
-      "loader_url": "https://raw.githubusercontent.com/REG-Linux/FreeABL-loaders/233f143c9221b071bc1adb8e6484b23a1cbc4a20/sm6115/mangmi-air-x/prog_firehose_ddr.elf",
+      "loader_url": "https://raw.githubusercontent.com/REG-Linux/FreeABL-loaders/158846ab6c2f1f33e8ea8c1d375f11ab0dce3219/sm6115/mangmi-air-x/prog_firehose_ddr.elf",
       "loader_sha256": "d2cfbbb0526c61596e29d2a815a62e5b521d68e29a9f2767ebf8e48b05b190b2",
       "loader_hint": "prog_firehose_ddr.elf from the Mangmi Air X firmware package"
     }
