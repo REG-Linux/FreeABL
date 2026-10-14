@@ -378,3 +378,12 @@ test('the chip serial seen in Android must be the one in EDL', async () => {
   const b = await core.backup(sim.edl, dev, state, null, quiet);
   assert.equal(b.info.chip_serial, 'aaaa0001');
 });
+
+test('a device picked by the wrong USB name is caught', async () => {
+  const dev = core.resolveDevice(table, { device: 'pockets' });
+  assert.equal(dev.usbName, 'SG_KALAMAP-QRD');
+  const sim = new SimDevice({ stockA: STOCK7, stockB: STOCK7 });
+  const adb = { ...sim.adb, usbProduct: 'QCS_KALAMAP-HDK_CID:0437_SN:12650080' };
+  await assert.rejects(core.androidCheck(adb, dev, quiet, table), /is an AYN Odin 2 Portal, but AYANEO Pocket S is selected/);
+  await core.androidCheck(sim.adb, dev, quiet, table);    // its own name: fine
+});

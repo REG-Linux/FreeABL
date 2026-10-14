@@ -243,7 +243,8 @@ export function resolveDevice(table, { device, soc, memory, untested, forWrite =
   if (soc && soc !== d.soc) stop(`the ${d.name} is ${d.soc}: for another SoC choose "Other device"`);
   return { id: device, name: d.name, soc: d.soc, mbn: d.mbn, validated: d.validated, android: d.android || [],
            memory: memory || d.memory || 'ufs', msmId: d.msm_id === null ? null : parseInt(d.msm_id, 16),
-           loaderHint: d.loader_hint_web || d.loader_hint, loaderUrl: d.loader_url || null, loaderSha256: d.loader_sha256 || null };
+           loaderHint: d.loader_hint_web || d.loader_hint, loaderUrl: d.loader_url || null, loaderSha256: d.loader_sha256 || null,
+           usbName: d.usb_name || null };
 }
 
 export const imageName = (soc) => `abl_signed-${soc.toUpperCase()}-ESP-r34.elf`;
@@ -275,8 +276,14 @@ export async function checkImage(dev, name, bytes, sums, log) {
  * bootloader, an Android build FreeABL was not run on). Nothing is written; the
  * fastboot check that follows is the one that counts.
  */
-export async function androidCheck(adb, dev, log) {
+export async function androidCheck(adb, dev, log, table = null) {
   await adb.connect();
+  // picked from the browser's list by its USB name: another listed device's is a wrong pick
+  const usbName = adb.usbProduct || '';
+  if (table && usbName) {
+    const other = Object.values(table.devices).find((d) => d.usb_name && usbName.startsWith(d.usb_name) && d.name !== dev.name);
+    if (other) stop(`the device picked (${usbName}) is an ${other.name}, but ${dev.name} is selected: pick the other one, or select ${other.name}`);
+  }
   const p = await adb.props();
   log(`  ${p['ro.product.manufacturer'] || ''} ${p['ro.product.model'] || '?'} (${p['ro.product.board'] || '?'}), Android serial ${p['ro.serialno'] || '-'}`);
   // Qualcomm's USB product name ends with the chip serial the boot ROM reports in EDL

@@ -1,5 +1,5 @@
 {
-  "_comment": "Device table shared by tools/freeabl-flash.py (embedded copy, checked by test/flash/test-flash.py) and web/. validated: current = this code on this device, earlier = an earlier build only. mbn = signature format of the stock and FreeABL ABL. msm_id = Sahara MSM ID seen on the device (null = not recorded). loader_hint_web: shown by the web page instead of loader_hint (the web page has no loader collection). android = Android builds FreeABL was run on, boot side as the flashers read it ({os_version, patch, fingerprint}); another version or patch month needs tester mode, another build of the same month gets a note; empty = none recorded yet, not checked. loader_url / loader_sha256: where the flashers fetch the EDL loader when none is given (REG-Linux/FreeABL-loaders, pinned commit), and the hash every loader is checked against.",
+  "_comment": "Device table shared by tools/freeabl-flash.py (embedded copy, checked by test/flash/test-flash.py) and web/. validated: current = this code on this device, earlier = an earlier build only. mbn = signature format of the stock and FreeABL ABL. msm_id = Sahara MSM ID seen on the device (null = not recorded). loader_hint_web: shown by the web page instead of loader_hint (the web page has no loader collection). android = Android builds FreeABL was run on, boot side as the flashers read it ({os_version, patch, fingerprint}); another version or patch month needs tester mode, another build of the same month gets a note; empty = none recorded yet, not checked. loader_url / loader_sha256: where the flashers fetch the EDL loader when none is given (REG-Linux/FreeABL-loaders, pinned commit), and the hash every loader is checked against. usb_name: how the device appears in the browser's device list in Android with USB debugging (the start of its USB product name), shown to tell devices apart.",
   "soc_mbn": {
     "sdm845": 5,
     "sm6115": 6,
@@ -24,6 +24,7 @@
     },
     "odin2portal": {
       "name": "AYN Odin 2 Portal",
+      "usb_name": "QCS_KALAMAP-HDK",
       "soc": "sm8550",
       "mbn": 7,
       "validated": "current",
@@ -43,6 +44,7 @@
     },
     "pockets": {
       "name": "AYANEO Pocket S",
+      "usb_name": "SG_KALAMAP-QRD",
       "soc": "sm8550",
       "mbn": 7,
       "validated": "current",

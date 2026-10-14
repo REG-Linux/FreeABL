@@ -113,7 +113,7 @@ async function doAdb() {
   const dev = selection(false);
   log('== Device in Android (USB debugging)');
   adb = adbDriver();
-  seen = await core.androidCheck(adb, dev, log);
+  seen = await core.androidCheck(adb, dev, log, table);
   if (!SIM) usb.pinSerial(seen.serial);
   log('Read only: nothing was changed. Next: restart it in fastboot mode.');
 }
@@ -122,7 +122,7 @@ async function doAdbReboot(mode) {
   if (!adb) {
     log('== Device in Android (USB debugging)');
     adb = adbDriver();
-    seen = await core.androidCheck(adb, selection(false), log);
+    seen = await core.androidCheck(adb, selection(false), log, table);
     if (!SIM) usb.pinSerial(seen.serial);
   }
   await adb.reboot(mode);
@@ -267,6 +267,7 @@ function refresh() {
     const dev = selection(false);
     note = { current: 'Validated with this build.', earlier: 'Validated with an earlier build only: needs tester mode.',
              none: 'Never run on this device: needs tester mode.' }[dev.validated];
+    $('usb-name-note').textContent = dev.usbName ? `In the browser's device list, the ${dev.name} appears as ${dev.usbName}…` : '';
     $('loader-note').textContent = dev.loaderUrl
       ? `Loader: leave empty to fetch the one validated on this device (${dev.loaderHint}), or choose your own.`
       : dev.loaderHint ? `Loader: ${dev.loaderHint}.` : 'Loader: the firehose loader from your device\'s firmware package.';
