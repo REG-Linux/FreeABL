@@ -12,3 +12,6 @@
 /test/qemu-ll/startup.nsh
 /test/boot_dispatch_test
 __pycache__/
+# local tool output, never committed
+edl_config.json
+web/test/.*-tmp.mjs
